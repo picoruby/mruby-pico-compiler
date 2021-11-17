@@ -1,0 +1,7 @@
+name: mruby-pico-compiler
+description: PicoCompiler class
+author: HASUMI Hitoshi
+website: https://github.com/hasumikin/mruby-pico-compiler
+protocol: git
+repository: https://github.com/hasumikin/mruby-pico-compiler.git
+license: MIT
