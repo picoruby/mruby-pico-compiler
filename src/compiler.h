@@ -5,7 +5,7 @@
 
 #include "scope.h"
 #include "stream.h"
-#include "ruby-lemon-parse/parse_header.h"
+#include "parse_header.h"
 
 bool Compiler_compile(ParserState *p, StreamInterface *si);
 

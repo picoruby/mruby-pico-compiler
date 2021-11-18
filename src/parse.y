@@ -1443,8 +1443,8 @@ none(A) ::= . { A = 0; }
   }
 #endif /* !NDEBUG */
 
-  char *kind(Node *n){
-    char *type = NULL;
+  const char *kind(Node *n){
+    const char *type = NULL;
     switch (n->type) {
       case ATOM:
         type = "a";

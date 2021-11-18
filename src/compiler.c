@@ -10,7 +10,7 @@
 #include "stream.h"
 #include "token.h"
 #include "tokenizer.h"
-#include "tokenizer_helper.h"
+#include <tokenizer_helper.h>
 #include "my_regex.h"
 
 #ifdef PICORBC_DEBUG

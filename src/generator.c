@@ -9,8 +9,8 @@
 #include "scope.h"
 #include "node.h"
 #include "generator.h"
-#include "mrubyc/src/opcode.h"
-#include "ruby-lemon-parse/parse_header.h"
+#include "../include/opcode.h"
+#include "parse_header.h"
 
 #define END_SECTION_SIZE 8
 

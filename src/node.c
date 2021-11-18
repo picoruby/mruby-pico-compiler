@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "node.h"
-#include "ruby-lemon-parse/parse_header.h"
+#include "parse_header.h"
 
 const char *Node_valueName(Node *self)
 {

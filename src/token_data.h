@@ -1,5 +1,5 @@
 static struct {
-  char *string;
+  const char *string;
 } OPERATORS_2[] = {
   {"**"},
   {"*="},
@@ -27,7 +27,7 @@ static struct {
 };
 
 static struct {
-  char *string;
+  const char *string;
 } OPERATORS_3[] = {
   {"<=>"},
   {"==="},
@@ -41,7 +41,7 @@ static struct {
 };
 
 static struct {
-  char letter;
+  const char letter;
 } PARENS[] = {
   {'('},
   {')'},

@@ -7,5 +7,9 @@ MRuby::Build.new do |conf|
     conf.enable_debug
     conf.cc.defines = %w(MRB_ENABLE_DEBUG_HOOK)
     conf.gem core: 'mruby-bin-debugger'
+  else
+    conf.cc.defines = %w(NDEBUG)
   end
+  conf.cc.defines << "MRBC_ALLOC_LIBC"
+  conf.cc.defines << "REGEX_USE_ALLOC_LIBC"
 end

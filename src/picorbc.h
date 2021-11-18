@@ -10,6 +10,6 @@
 #include "scope.h"
 #include "compiler.h"
 #include "stream.h"
-#include "ruby-lemon-parse/parse.h"
+#include "parse.h"
 
 #endif /* PICORBC_PICORBC_H_ */

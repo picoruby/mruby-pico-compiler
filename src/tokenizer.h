@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "ruby-lemon-parse/parse_header.h"
+#include "parse_header.h"
 #include "token.h"
 #include "stream.h"
 

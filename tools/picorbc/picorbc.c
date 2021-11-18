@@ -11,7 +11,7 @@
 
 #include "../src/picorbc.h"
 
-#include "../src/ruby-lemon-parse/parse_header.h"
+#include "../src/parse_header.h"
 
 #include "heap.h"
 

@@ -4,9 +4,9 @@
 #include <stdlib.h>
 
 #include "picorbc.h"
-#include "ruby-lemon-parse/parse.h"
-#include "ruby-lemon-parse/keyword_helper.h"
-#include "ruby-lemon-parse/token_helper.h"
+#include "parse.h"
+#include <keyword_helper.h>
+#include <token_helper.h>
 #include "common.h"
 #include "tokenizer.h"
 #include "token.h"
@@ -278,7 +278,7 @@ retry:
           self->line_num,
           self->pos,
           DSTRING_BEG,
-          "#{",
+          (char *)"#{",
           EXPR_BEG);
         self->pos += 2;
         tokenizer_paren_stack_add(self, PAREN_BRACE);
@@ -307,7 +307,7 @@ retry:
           self->line_num,
           self->pos,
           DSTRING_END,
-          "}",
+          (char *)"}",
           EXPR_END);
         self->pos++;
       } else if (self->line[self->pos] == '\\') {

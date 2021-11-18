@@ -24,8 +24,14 @@ end
 
 desc "cleanup"
 task :clean do
+  rm_rf "lib/lemon"
+  rm_rf "lib/ptr_size_generator"
+  rm_rf "src/parse.out"
+  rm_rf "src/parse.c"
+  rm_rf "src/parse.h"
   exit 0 unless File.directory?('mruby')
   sh "cd mruby && rake deep_clean"
+  rm_rf "mruby/bin/picorbc"
 end
 
 task :default => :compile

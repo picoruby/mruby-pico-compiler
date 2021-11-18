@@ -283,7 +283,7 @@ regcomp(regex_t *preg, const char *pattern, int _cflags)
   bool dry_run = true;
   char *pattern_index = (char *)pattern;
   uint16_t atoms_count = 1;
-  unsigned char *ccl;
+  unsigned char *ccl = '\0';
   /*
    * Just calculates size of atoms as a dry-run,
    * then makes atoms and ccl(s) at the second time

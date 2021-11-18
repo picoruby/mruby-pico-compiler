@@ -102,7 +102,7 @@ char *strsafencpy(char *s1, const char *s2, size_t n, size_t max)
 {
   DEBUGP("s1: `%s`, s2: `%s`, n: %d, max: %d", s1, s2, (int)n, (int)max);
   if (n < max) {
-    strncpy(s1, s2, n + 1);
+    memcpy(s1, s2, n + 1);
     DEBUGP("Copied: %s", s1);
   } else {
     FATALP("Can't cpy string!");
@@ -119,8 +119,9 @@ char *strsafecpy(char *s1, const char *s2, size_t max)
 char *strsafecat(char *dst, const char *src, size_t max)
 {
   size_t lensrc = strlen(src);
-  if (strlen(dst) + lensrc < max) {
-    strncat(dst, src, lensrc);
+  size_t lendst = strlen(dst);
+  if (lendst + lensrc < max) {
+    memcpy(dst+lendst, src, lensrc+1);
   } else {
     FATALP("Can't cat string!");
   }

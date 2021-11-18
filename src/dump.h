@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include "mrubyc/src/opcode.h"
+#include "../include/opcode.h"
 
 void Dump_codeDump(uint8_t *irep);
 
