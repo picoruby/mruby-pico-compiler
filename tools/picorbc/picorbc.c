@@ -13,8 +13,6 @@
 
 #include "../src/parse_header.h"
 
-#include "heap.h"
-
 int loglevel;
 
 int handle_opt(int argc, char * const *argv, char *out, char *b_symbol)
