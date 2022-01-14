@@ -3,6 +3,8 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.license = 'MIT'
   spec.authors = 'HASUMI Hitoshi'
 
+  spec.add_conflict 'mruby-compiler'
+
   include_dir = "#{build_dir}/include"
   src_dir = "#{dir}/src"
   lib_dir = "#{dir}/lib"
