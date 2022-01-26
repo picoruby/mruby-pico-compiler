@@ -1,3 +1,11 @@
+module MRuby
+  class Build
+    def libmruby_core_enabled?
+      @enable_libmruby_core != false
+    end
+  end
+end
+
 MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.license = 'MIT'
   spec.authors = 'HASUMI Hitoshi'
@@ -9,13 +17,16 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   lib_dir = "#{dir}/lib"
   spec.cc.include_paths << include_dir
 
-  objs = %w[parse].map do |name|
+  objs = %w[parse compiler tokenizer].map do |name|
     src = "#{src_dir}/#{name}.c"
     if build.cxx_exception_enabled?
       build.compile_as_cxx(src)
     else
       objfile(src.pathmap("#{build_dir}/src/%n"))
     end
+  end
+  unless build.libmruby_core_enabled?
+    build.libmruby_core_objs.clear
   end
   build.libmruby_core_objs << objs
 
