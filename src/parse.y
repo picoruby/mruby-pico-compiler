@@ -54,12 +54,12 @@
   #include <stdlib.h>
   #include <stdint.h>
   #include <string.h>
-  #include "parse_header.h"
-  #include "parse.h"
+  #include <parse_header.h>
+  #include <parse.h>
   #include <atom_helper.h>
-  #include "scope.h"
-  #include "node.h"
-  #include "token.h"
+  #include <scope.h>
+  #include <node.h>
+  #include <token.h>
 }
 
 %ifdef LEMON_PICORBC
@@ -84,7 +84,7 @@
 %endif
 
 %include {
-  #include "parse_header.h"
+  #include <parse_header.h>
 
   #define STRING_NULL (p->special_string_pool.null)
   #define STRING_NEG  (p->special_string_pool.neg)

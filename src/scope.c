@@ -2,9 +2,9 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "common.h"
-#include "debug.h"
-#include "scope.h"
+#include <common.h>
+#include <debug.h>
+#include <scope.h>
 
 #define IREP_HEADER_SIZE 14
 

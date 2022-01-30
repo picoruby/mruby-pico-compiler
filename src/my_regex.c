@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "picorbc.h"
-#include "common.h"
-#include "my_regex.h"
+#include <picorbc.h>
+#include <common.h>
+#include <my_regex.h>
 
 typedef struct preg_cache {
   const char *pattern;

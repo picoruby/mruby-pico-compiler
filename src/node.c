@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common.h"
-#include "node.h"
-#include "parse_header.h"
+#include <common.h>
+#include <node.h>
+#include <parse_header.h>
 
 const char *Node_valueName(Node *self)
 {

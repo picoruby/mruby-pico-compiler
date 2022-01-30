@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
-#include "common.h"
-#include "debug.h"
+#include <common.h>
+#include <debug.h>
 
 #ifndef MRBC_ALLOC_LIBC
 #define MRBC_ALLOC_LIBC

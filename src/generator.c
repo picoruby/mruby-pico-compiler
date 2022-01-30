@@ -3,14 +3,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "picorbc.h"
-#include "common.h"
-#include "debug.h"
-#include "scope.h"
-#include "node.h"
-#include "generator.h"
-#include "../include/opcode.h"
-#include "parse_header.h"
+#include <picorbc.h>
+#include <common.h>
+#include <debug.h>
+#include <scope.h>
+#include <node.h>
+#include <generator.h>
+#include <opcode.h>
+#include <parse_header.h>
 
 #define END_SECTION_SIZE 8
 
@@ -1331,7 +1331,7 @@ void memcpyFlattenCode(uint8_t *body, CodePool *code_pool)
 }
 
 #ifdef PICORBC_DEBUG
-#include "dump.h"
+#include <dump.h>
 #endif
 
 uint8_t *writeCode(Scope *scope, uint8_t *pos)

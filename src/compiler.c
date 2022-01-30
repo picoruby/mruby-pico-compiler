@@ -2,16 +2,16 @@
 
 #include "parse.c"
 #include <token_helper.h>
-#include "common.h"
-#include "compiler.h"
-#include "debug.h"
-#include "generator.h"
-#include "scope.h"
-#include "stream.h"
-#include "token.h"
-#include "tokenizer.h"
+#include <common.h>
+#include <compiler.h>
+#include <debug.h>
+#include <generator.h>
+#include <scope.h>
+#include <stream.h>
+#include <token.h>
+#include <tokenizer.h>
 #include <tokenizer_helper.h>
-#include "my_regex.h"
+#include <my_regex.h>
 
 #ifdef PICORBC_DEBUG
 #define ZERO     "\e[30;1m"

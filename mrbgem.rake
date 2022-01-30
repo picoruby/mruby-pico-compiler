@@ -12,7 +12,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
 
   spec.add_conflict 'mruby-compiler'
 
-  include_dir = "#{build_dir}/include"
+  include_dir = "#{dir}/include"
   src_dir = "#{dir}/src"
   lib_dir = "#{dir}/lib"
   spec.cc.include_paths << include_dir
@@ -31,10 +31,6 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   build.libmruby_core_objs << objs
 
   directory include_dir
-
-  file "#{include_dir}/parse.h" => [include_dir, "#{src_dir}/parse.h"] do |t|
-    sh "cp #{src_dir}/parse.h #{t.name}"
-  end
 
   file "#{include_dir}/keyword_helper.h" => [include_dir, "#{include_dir}/parse.h"] do |t|
     File.open(t.name, "w") do |file|
@@ -59,14 +55,14 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  file "#{include_dir}/token_helper.h" => [include_dir, "#{src_dir}/parse.h"] do |t|
+  file "#{include_dir}/token_helper.h" => [include_dir, "#{include_dir}/parse.h"] do |t|
     File.open(t.name, "w") do |file|
       file.puts <<~TEXT
         inline static const char *token_name(int n)
         {
           switch(n) {
       TEXT
-      File.open("#{src_dir}/parse.h", "r") do |f|
+      File.open("#{include_dir}/parse.h", "r") do |f|
         f.each_line do |line|
           data = line.match(/\A#define\s+(\w+)\s+\d+$/)
           if data
@@ -82,14 +78,14 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  file "#{include_dir}/atom_helper.h" => [include_dir, "#{src_dir}/parse_header.h"] do |t|
+  file "#{include_dir}/atom_helper.h" => [include_dir, "#{include_dir}/parse_header.h"] do |t|
     File.open(t.name, "w") do |file|
       file.puts <<~TEXT
         inline static const char *atom_name(AtomType n)
         {
           switch(n) {
       TEXT
-      File.open("#{src_dir}/parse_header.h", "r") do |f|
+      File.open("#{include_dir}/parse_header.h", "r") do |f|
         f.each_line do |line|
           break if line.match?("enum atom_type")
         end
@@ -109,14 +105,14 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  file "#{include_dir}/tokenizer_helper.h" => [include_dir, "#{src_dir}/tokenizer.h", "#{src_dir}/token.h"] do |t|
+  file "#{include_dir}/tokenizer_helper.h" => [include_dir, "#{include_dir}/tokenizer.h", "#{include_dir}/token.h"] do |t|
     File.open(t.name, "w") do |file|
       file.puts <<~TEXT
         inline static const char *tokenizer_state_name(State n)
         {
           switch(n) {
       TEXT
-      File.open("#{src_dir}/token.h", "r") do |f|
+      File.open("#{include_dir}/token.h", "r") do |f|
         f.each_line do |line|
           break if line.match?("enum state")
         end
@@ -140,7 +136,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
         {
           switch(n) {
       TEXT
-      File.open("#{src_dir}/tokenizer.h", "r") do |f|
+      File.open("#{include_dir}/tokenizer.h", "r") do |f|
         f.each_line do |line|
           break if line.match?("enum mode")
         end
@@ -168,7 +164,8 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     sh "cd #{lib_dir} && cc -static -o ptr_size_generator ptr_size_generator.c"
   end
 
-  file "#{src_dir}/parse.h" => "#{src_dir}/parse.c" do
+  file "#{include_dir}/parse.h" => "#{src_dir}/parse.c" do |f|
+    sh "cp #{f.prerequisites.first.pathmap("%X")}.h #{f}"
   end
 
   file "#{src_dir}/compiler.c" => %W(#{include_dir}/token_helper.h

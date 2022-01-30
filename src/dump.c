@@ -1,4 +1,4 @@
-#include "dump.h"
+#include <dump.h>
 
 #define MRB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
 #define MRB_ASPEC_OPT(a)          (((a) >> 13) & 0x1f)

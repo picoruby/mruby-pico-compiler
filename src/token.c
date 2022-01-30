@@ -2,10 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "parse.h"
-#include "debug.h"
-#include "common.h"
-#include "token.h"
+#include <parse.h>
+#include <debug.h>
+#include <common.h>
+#include <token.h>
 
 Token *Token_new(void)
 {

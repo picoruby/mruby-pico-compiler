@@ -3,16 +3,16 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "picorbc.h"
-#include "parse.h"
+#include <picorbc.h>
+#include <parse.h>
 #include <keyword_helper.h>
 #include <token_helper.h>
-#include "common.h"
-#include "tokenizer.h"
-#include "token.h"
-#include "my_regex.h"
+#include <common.h>
+#include <tokenizer.h>
+#include <token.h>
+#include <my_regex.h>
 
-#include "token_data.h"
+#include <token_data.h>
 
 #define IS_ARG() (self->p->state == EXPR_ARG || self->p->state == EXPR_CMDARG)
 #define IS_END() (self->p->state == EXPR_END || self->p->state == EXPR_ENDARG || self->p->state == EXPR_ENDFN)

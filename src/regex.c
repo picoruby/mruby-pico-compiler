@@ -1,6 +1,6 @@
 #include <stdbool.h>
 #include <string.h>
-#include "./regex.h"
+#include <regex.h>
 
 /*
  * You can use stdlib's malloc() and free()

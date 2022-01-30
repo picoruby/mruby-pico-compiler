@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "common.h"
-#include "debug.h"
-#include "stream.h"
+#include <common.h>
+#include <debug.h>
+#include <stream.h>
 
 fmemstream *fmemstreamopen(char *mem)
 {
