@@ -55,7 +55,7 @@
   #include <stdint.h>
   #include <string.h>
   #include <parse_header.h>
-  #include <parse.h>
+  #include "parse.h" /* Intentional */
   #include <atom_helper.h>
   #include <scope.h>
   #include <node.h>
