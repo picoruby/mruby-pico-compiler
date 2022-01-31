@@ -9,6 +9,7 @@ end
 MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.license = 'MIT'
   spec.authors = 'HASUMI Hitoshi'
+  spec.summary = 'small footprint mruby compiler library'
 
   spec.add_conflict 'mruby-compiler'
 

@@ -1,7 +1,17 @@
 #ifndef PICORBC_PICORBC_H_
 #define PICORBC_PICORBC_H_
 
-#include "banned.h"
+/*
+ * banned.h occurs errors like
+ * "error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token"
+ * because of banned.h
+ * If NDEBUG is defined, CFLAGS will contain "-O0" which can avoid the error above.
+ * See picoruby/build_config/default.rb
+ */
+#ifndef NDEBUG
+  #include "banned.h"
+#endif
+
 #include "version.h"
 #include "debug.h"
 #include "common.h"
