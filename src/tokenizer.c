@@ -13,7 +13,6 @@
 #include <my_regex.h>
 
 #include <token_data.h>
-
 #define IS_ARG() (self->p->state == EXPR_ARG || self->p->state == EXPR_CMDARG)
 #define IS_END() (self->p->state == EXPR_END || self->p->state == EXPR_ENDARG || self->p->state == EXPR_ENDFN)
 #define IS_BEG() (self->p->state & EXPR_BEG || self->p->state == EXPR_MID || self->p->state == EXPR_VALUE || self->p->state == EXPR_CLASS)
@@ -213,7 +212,9 @@ retry:
         self->pos++;
         self->mode = MODE_NONE;
         break;
-      } else if (self->line[self->pos] == ' ' || self->line[self->pos] == '\n') {
+      } else if (self->line[self->pos] == ' ' ||
+                 self->line[self->pos] == '\n' ||
+                 self->line[self->pos] == '\r') {
         Regex_match3(&(self->line[self->pos]), "^(\\s+)", regexResult);
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = WORDS_SEP;
@@ -223,7 +224,8 @@ retry:
           c[0] = self->line[self->pos + i];
           c[1] = '\0';
           if (c[0] == '\0') break;
-          if (c[0] != ' ' && c[0] != '\t' && c[0] != '\n' && c[0] != self->modeTerminater) {
+          if (c[0] != ' ' && c[0] != '\t' && c[0] != '\n' && c[0] != '\r' &&
+              c[0] != self->modeTerminater) {
             strsafecat(value, c, MAX_TOKEN_LENGTH);
             i++;
           } else {
@@ -511,7 +513,7 @@ retry:
     char c1 = self->line[self->pos + 1];
     char c2 = self->line[self->pos + 2];
     if ( (IS_BEG() || IS_ARG()) && c1 != ' ' &&
-        (c2 == ' ' || c2 == '\n' || c2 == '\t' || c2 == ';' || c2 == '\0') ) {
+        (c2 == ' ' || c2 == '\n' || c2 == '\r' || c2 == '\t' || c2 == ';' || c2 == '\0') ) {
       value[0] = c1;
       type = STRING;
       self->p->state = EXPR_END;
