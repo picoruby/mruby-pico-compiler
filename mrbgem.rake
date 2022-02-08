@@ -18,6 +18,12 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   lib_dir = "#{dir}/lib"
   spec.cc.include_paths << include_dir
 
+  Dir.glob("#{src_dir}/*.c").each do |src|
+    file objfile(src.pathmap "#{build_dir}/src/%n") do |f|
+      cc.run f.name, src
+    end
+  end
+
   objs = %w[parse compiler tokenizer].map do |name|
     src = "#{src_dir}/#{name}.c"
     if build.cxx_exception_enabled?

@@ -3,19 +3,21 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-        MRUBY_VERSION: 2.1.2
     steps:
       - uses: actions/checkout@v2
       - name: Install packages
         run: | 
           sudo apt-get -qq update
-          sudo apt-get -qq install rake bison git gperf
-      - name: Clone mruby
-        run: git clone https://github.com/mruby/mruby.git
-      - name: Copy build file
-        run: cp -fp ./.github_actions_build_config.rb ./mruby/build_config.rb
+          sudo apt-get -qq install rake git gperf
+      - name: Clone PicoRuby
+        run: |
+          cd ../
+          git clone https://github.com/picoruby/picoruby.git
+      - name: Copy self
+        run: |
+          mkdir -p ../picoruby/build/repos/host
+          cp -frp ../mruby-pico-compiler ../picoruby/build/repos/host/
       - name: Test
         run: |
-          cd mruby
+          cd ../picoruby
           rake all test
