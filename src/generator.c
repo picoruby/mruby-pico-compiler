@@ -986,7 +986,8 @@ void gen_irep(Scope *scope, Node *node)
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
     }
-    if (scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_RETURN) {
+    int op = scope->current_code_pool->data[scope->current_code_pool->index - 2];
+    if (op != OP_RETURN && op != OP_RETURN_BLK) {
       Scope_pushCode(OP_RETURN);
       Scope_pushCode(scope->sp);
     }
@@ -1123,7 +1124,7 @@ void gen_return(Scope *scope, Node *node)
     Scope_pushCode(OP_LOADNIL);
     Scope_pushCode(scope->sp);
   }
-  Scope_pushCode(OP_RETURN);
+  Scope_pushCode(scope->lvar_top ? OP_RETURN : OP_RETURN_BLK);
   Scope_pushCode(scope->sp);
 }
 
