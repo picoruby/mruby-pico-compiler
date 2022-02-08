@@ -418,6 +418,7 @@ retry:
       self->p->state = EXPR_BEG;
     } else if (value[2] == '=') {
       type = OP_ASGN;
+      self->p->state = EXPR_BEG;
     } else if (value[2] == '.') {
       if (IS_BEG()) {
         type = BDOT3;
@@ -445,7 +446,9 @@ retry:
       case '*':
         switch (value[1]) {
           case '*': type = POW; break;
-          case '=': type = OP_ASGN; break;
+          case '=': type = OP_ASGN;
+            self->p->state = EXPR_BEG;
+            break;
         }
         break;
       case '<':
