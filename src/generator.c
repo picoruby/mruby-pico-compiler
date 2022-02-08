@@ -780,16 +780,12 @@ void gen_case(Scope *scope, Node *node)
         Scope_pushCode(OP_LOADNIL);
         Scope_pushCode(scope->sp);
       }
-      Scope_pushCode(OP_MOVE);
-      Scope_pushCode(start_reg);
-      Scope_pushCode(--scope->sp);
     }
     Scope_pushCode(OP_JMP);
     label_end_array[i++] = Scope_reserveJmpLabel(scope);
     /* next case */
     Scope_backpatchJmpLabel(label_false, scope->vm_code_size);
     case_body = case_body->cons.cdr->cons.cdr->cons.car;
-    scope->sp--;
     if (case_body) {
       if (case_body->cons.car) {
         continue;
