@@ -13,9 +13,7 @@
 /* GLOBAL */
 extern int loglevel;
 
-#if !defined(NDEBUG)
-
-  #define PICORBC_DEBUG
+#ifdef PICORUBY_DEBUG
 
   #define DEBUGP(fmt, ...)                 \
     do {                                  \
@@ -90,6 +88,6 @@ extern int loglevel;
         fprintf(stderr, "\n");                \
       }                                       \
     } while (0)
-#endif /* !NDEBUG */
+#endif /* PICORBC_DEBUG */
 
 #endif /* PICORBC_DEBUG_H_ */

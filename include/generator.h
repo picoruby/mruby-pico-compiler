@@ -10,6 +10,6 @@
 
 typedef struct node Node;
 
-void Generator_generate(Scope *scope, Node *root);
+void Generator_generate(Scope *scope, Node *root, bool verbose);
 
 #endif

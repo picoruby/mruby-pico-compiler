@@ -5,10 +5,10 @@
  * banned.h occurs errors like
  * "error: expected ‘=’, ‘,’, ‘;’, ‘asm’ or ‘__attribute__’ before ‘{’ token"
  * because of banned.h
- * If NDEBUG is defined, CFLAGS will contain "-O0" which can avoid the error above.
+ * If PICORUBY_DEBUG is not defined, CFLAGS will contain "-O0" which can avoid the error above.
  * See picoruby/build_config/default.rb
  */
-#ifndef NDEBUG
+#ifdef PICORUBY_DEBUG
   #include "banned.h"
 #endif
 

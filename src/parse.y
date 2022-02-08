@@ -1376,7 +1376,6 @@ none(A) ::= . { A = 0; }
     Node_freeAllNode(yyp->p->root_node_box);
   }
 
-#ifndef NDEBUG
   void showNode1(Node *n, bool isCar, int indent, bool isRightMost) {
     if (n == NULL) return;
     switch (n->type) {
@@ -1441,7 +1440,6 @@ none(A) ::= . { A = 0; }
     }
     printf("\n");
   }
-#endif /* !NDEBUG */
 
   const char *kind(Node *n){
     const char *type = NULL;

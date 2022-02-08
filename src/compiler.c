@@ -13,7 +13,6 @@
 #include <tokenizer_helper.h>
 #include <my_regex.h>
 
-#ifdef PICORBC_DEBUG
 #define ZERO     "\e[30;1m"
 #define CTRL     "\e[35;1m"
 #define LETTER   "\e[36m"
@@ -76,7 +75,6 @@ printToken(Tokenizer *tokenizer, Token *token) {
      token->value,
      tokenizer_state_name(token->state));
 }
-#endif /* PICORBC_DEBUG */
 
 bool Compiler_compile(ParserState *p, StreamInterface *si)
 {
@@ -98,9 +96,7 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
         DEBUGP("(main)%p null", topToken);
       } else {
         if (topToken->type != ON_SP) {
-          #ifdef PICORBC_DEBUG
-          printToken(tokenizer, topToken);
-          #endif
+          if (p->verbose) printToken(tokenizer, topToken);
           const char *string;
           switch (topToken->type) {
             case IVAR:
@@ -152,19 +148,15 @@ FAIL:
   bool success;
   if (p->error_count == 0) {
     success = true;
-#ifdef PICORBC_DEBUG
-    ParseShowAllNode(parser, 1);
-#endif
-    Generator_generate(p->scope, p->root_node_box->nodes);
+    if (p->verbose) ParseShowAllNode(parser, 1);
+    Generator_generate(p->scope, p->root_node_box->nodes, p->verbose);
   } else {
     //ERRORP("Syntax error at line:%d\n%s", tokenizer->line_num - 1, tokenizer->line);
     // FIXME should print prev line
     WARNP("Syntax error at line:%d", tokenizer->line_num - 1);
     success = false;
   }
-#ifdef PICORBC_DEBUG
-  if (success) dumpCode(p->scope);
-#endif
+  if (p->verbose && success) dumpCode(p->scope);
   ParseFreeAllNode(parser);
   picorbc_free(parser);
   Tokenizer_free(tokenizer);

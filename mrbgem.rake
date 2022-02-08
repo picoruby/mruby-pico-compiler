@@ -19,7 +19,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.cc.include_paths << include_dir
 
   Dir.glob("#{src_dir}/*.c").each do |src|
-    file objfile(src.pathmap "#{build_dir}/src/%n") do |f|
+    file objfile(src.pathmap "#{build_dir}/src/%n") => src do |f|
       cc.run f.name, src
     end
   end
@@ -169,6 +169,10 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
 
   file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do
     sh "cd #{lib_dir} && cc -static -o ptr_size_generator ptr_size_generator.c"
+  end
+
+  file objfile("#{build_dir}/src/parse") => "#{src_dir}/parse.c" do |f|
+    cc.run f.name, f.prerequisites.first
   end
 
   file "#{include_dir}/parse.h" => "#{src_dir}/parse.c" do |f|

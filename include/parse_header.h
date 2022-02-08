@@ -153,6 +153,7 @@ typedef struct parser_state {
   unsigned int cmdarg_stack;
   bool cmd_start;
   State state;
+  bool verbose;
 } ParserState;
 
 #define BITSTACK_PUSH(stack, n) ((stack) = ((stack) << 1) | ((n) & 1))

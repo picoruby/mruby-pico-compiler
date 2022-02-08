@@ -18,7 +18,7 @@
 
 #define MAX_TOKEN_LENGTH 256
 
-#ifdef PICORBC_DEBUG
+#ifdef PICORUBY_DEBUG
 typedef struct alloc_list
 {
   int count;
@@ -30,7 +30,7 @@ typedef struct alloc_list
 void print_memory(void);
 
 void memcheck(void);
-#endif /* !PICORBC_DEBUG */
+#endif /* !PICORUBY_DEBUG */
 
 void *picorbc_alloc(size_t size);
 

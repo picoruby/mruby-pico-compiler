@@ -11,6 +11,7 @@
 #include <generator.h>
 #include <opcode.h>
 #include <parse_header.h>
+#include <dump.h>
 
 #define END_SECTION_SIZE 8
 
@@ -1326,24 +1327,19 @@ void memcpyFlattenCode(uint8_t *body, CodePool *code_pool)
   }
 }
 
-#ifdef PICORBC_DEBUG
-#include <dump.h>
-#endif
 
-uint8_t *writeCode(Scope *scope, uint8_t *pos)
+uint8_t *writeCode(Scope *scope, uint8_t *pos, bool verbose)
 {
   if (scope == NULL) return pos;
   memcpyFlattenCode(pos, scope->first_code_pool);
-#ifdef PICORBC_DEBUG
-  Dump_codeDump(pos);
-#endif
+  if (verbose) Dump_codeDump(pos);
   pos += scope->vm_code_size;
-  pos = writeCode(scope->first_lower, pos);
-  pos = writeCode(scope->next, pos);
+  pos = writeCode(scope->first_lower, pos, verbose);
+  pos = writeCode(scope->next, pos, verbose);
   return pos;
 }
 
-void Generator_generate(Scope *scope, Node *root)
+void Generator_generate(Scope *scope, Node *root, bool verbose)
 {
   codegen(scope, root);
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
@@ -1362,7 +1358,7 @@ void Generator_generate(Scope *scope, Node *root)
   vmCode[26] = (sectionSize >> 8) & 0xff;
   vmCode[27] = sectionSize & 0xff;
   memcpy(&vmCode[28], "0300", 4); // instruction version
-  writeCode(scope, &vmCode[HEADER_SIZE]);
+  writeCode(scope, &vmCode[HEADER_SIZE], verbose);
   memcpy(&vmCode[HEADER_SIZE + irepSize], "END\0\0\0\0", 7);
   vmCode[codeSize - 1] = 0x08;
   scope->vm_code = vmCode;
