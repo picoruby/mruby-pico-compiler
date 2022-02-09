@@ -496,7 +496,6 @@ void gen_op_assign(Scope *scope, Node *node)
     case (ATOM_at_ivar):
     case (ATOM_at_gvar):
     case (ATOM_at_const):
-      num = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr));
       switch(Node_atomType(node->cons.car)) {
         case (ATOM_at_ivar):
           Scope_pushCode(OP_GETIV);
@@ -512,14 +511,14 @@ void gen_op_assign(Scope *scope, Node *node)
       }
       Scope_pushCode(scope->sp);
       Scope_push(scope);
+      num = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr));
       Scope_pushCode(num);
       break;
     case (ATOM_call):
       if (!strcmp(call_name, "[]")) {
         is_call_name_at_ary = true;
-      } else {
-        Scope_push(scope);
       }
+      Scope_push(scope);
       codegen(scope, node->cons.car->cons.cdr->cons.car);
       Scope_push(scope);
       node->cons.car->cons.cdr->cons.car = NULL;
@@ -541,7 +540,7 @@ void gen_op_assign(Scope *scope, Node *node)
         Scope_pushCode(scope->sp);
         Scope_pushCode(scope->sp - 1);
         codegen(scope, node->cons.car);
-Scope_push(scope);
+        Scope_push(scope);
       }
       break;
     default:
@@ -571,8 +570,7 @@ Scope_push(scope);
     case '*': /* *= and **= */
       if (!strcmp(method_name, "*=")) {
         Scope_pushCode(OP_MUL);
-        scope->sp--;
-        Scope_pushCode(scope->sp);
+        Scope_pushCode(--scope->sp);
       } else if (isANDOPorOROP) {
         switch (method_name[1]) {
           case '|':
@@ -638,7 +636,7 @@ Scope_push(scope);
       Scope_pushCode(OP_SEND);
       scope->sp--;
       if (is_call_name_at_ary) scope->sp--;
-      Scope_pushCode(scope->sp);
+      Scope_pushCode(scope->sp--);
       Scope_pushCode(Scope_assignSymIndex(scope, call_name));
       /* count of args */
       if (is_call_name_at_ary) {
@@ -650,7 +648,6 @@ Scope_push(scope);
     default:
       FATALP("error");
   }
- // Scope_push(scope);
   switch(Node_atomType(node->cons.car)) {
     case (ATOM_lvar):
       if (lvar.scope_num > 0) break;

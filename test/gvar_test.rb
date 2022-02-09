@@ -29,4 +29,11 @@ class GvarTest < PicoRubyTest
     $gvar||={}
     p $gvar
   RUBY
+
+  desc "op_assign hash 2"
+  assert_equal(<<~RUBY, '{:a=>1}')
+    $gvar={}
+    $gvar[:a] ||= 1
+    p $gvar
+  RUBY
 end

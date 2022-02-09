@@ -21,5 +21,11 @@ class OpAssignTest < PicoRubyTest
     a <<= 3
     p a
   RUBY
+
+  desc "return value"
+  assert_equal(<<~RUBY, "1")
+    a = {}
+    p(a[:a] ||= 1)
+  RUBY
 end
 

@@ -29,4 +29,11 @@ class IvarTest < PicoRubyTest
     @ivar||={}
     p @ivar
   RUBY
+
+  desc "op_assign hash 2"
+  assert_equal(<<~RUBY, '{:a=>1}')
+    @ivar={}
+    @ivar[:a] ||= 1
+    p @ivar
+  RUBY
 end
