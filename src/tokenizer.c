@@ -446,10 +446,9 @@ retry:
       case '*':
         switch (value[1]) {
           case '*': type = POW; break;
-          case '=': type = OP_ASGN;
-            self->p->state = EXPR_BEG;
-            break;
+          case '=': type = OP_ASGN; break;
         }
+        self->p->state = EXPR_BEG;
         break;
       case '<':
         switch (value[1]) {
