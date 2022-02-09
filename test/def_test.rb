@@ -60,4 +60,54 @@ class DefTest < PicoRubyTest
     end
     m(8,9) { |x, y| puts x, y }
   RUBY
+
+  desc "def !"
+  assert_equal(<<~RUBY, ":!")
+    p(def !() end)
+  RUBY
+
+  desc "def !="
+  assert_equal(<<~RUBY, ":!=")
+    p(def !=() end)
+  RUBY
+
+  desc "def `"
+  assert_equal(<<~RUBY, ":`")
+    p(def `() end)
+  RUBY
+
+  desc "def =="
+  assert_equal(<<~RUBY, ":==")
+    p(def ==() end)
+  RUBY
+
+  desc "def ==="
+  assert_equal(<<~RUBY, ":===")
+    p(def ===() end)
+  RUBY
+
+  desc "def <=>"
+  assert_equal(<<~RUBY, ":<=>")
+    p(def <=>() end)
+  RUBY
+
+  desc "def <<"
+  assert_equal(<<~RUBY, ":<<")
+    p(def <<() end)
+  RUBY
+
+  desc "def >>"
+  assert_equal(<<~RUBY, ":>>")
+    p(def >>() end)
+  RUBY
+
+  desc "def <"
+  assert_equal(<<~RUBY, ":<")
+    p(def <() end)
+  RUBY
+
+  desc "def >"
+  assert_equal(<<~RUBY, ":>")
+    p(def >() end)
+  RUBY
 end
