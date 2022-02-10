@@ -85,6 +85,17 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
   Tokenizer *tokenizer = Tokenizer_new(p, si);
   Token *topToken = tokenizer->currentToken;
   yyParser *parser = ParseAlloc(picorbc_alloc, p);
+#ifdef PICORUBY_DEBUG
+  FILE *traceFile;
+  if (p->verbose) {
+    traceFile = tmpfile();
+    if (traceFile == NULL) {
+      printf("Failed to open traceFile!");
+      return false;
+    }
+    ParseTrace(traceFile, (char *)"parse> ");
+  }
+#endif
   Type prevType = 0;
   while( Tokenizer_hasMoreTokens(tokenizer) ) {
     if (Tokenizer_advance(tokenizer, false) > 0) {
@@ -144,6 +155,17 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
   }
   Parse(parser, 0, "");
 FAIL:
+#ifdef PICORUBY_DEBUG
+  if (p->verbose) {
+    rewind(traceFile);
+    char ch = fgetc(traceFile);
+    while(ch != EOF) {
+      printf("%c", ch);
+      ch = fgetc(traceFile);
+    }
+    fclose(traceFile);
+  }
+#endif
   MyRegexCache_free();
   bool success;
   if (p->error_count == 0) {

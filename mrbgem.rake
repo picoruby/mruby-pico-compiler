@@ -205,7 +205,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  file "#{lib_dir}/lemon" => %W(#{lib_dir}/lemon.c) do
-    sh "cd #{lib_dir} && cc -O0 -g3 -Wall -Wpointer-arith -std=gnu99 -o lemon lemon.c"
+  file "#{lib_dir}/lemon" => %W(#{lib_dir}/lemon.c) do |f|
+    sh "#{cc.command} #{cc.flags.flatten.join(" ")} -o #{f.name} #{f.prerequisites.first}"
   end
 end
