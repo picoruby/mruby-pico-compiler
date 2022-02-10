@@ -115,6 +115,8 @@ typedef struct scope
   BreakStack *break_stack;
   AssignSymbol *last_assign_symbol;
   Backpatch *backpatch; /* for backpatching of JMP label */
+  uint8_t splat_status;
+  int nargs_before_splat;
 } Scope;
 
 Scope *Scope_new(Scope *upper, bool lvar_top);

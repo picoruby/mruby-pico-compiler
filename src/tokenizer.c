@@ -735,7 +735,11 @@ retry:
               type = MINUS;
               break;
             case '*':
-              type = TIMES;
+              if (IS_BEG()) {
+                type = STAR;
+              } else {
+                type = TIMES;
+              }
               break;
             case '/':
               type = DIVIDE;

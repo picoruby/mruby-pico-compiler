@@ -237,6 +237,12 @@
   }
 
   static Node*
+  new_splat(ParserState *p, Node *a)
+  {
+    return list2(atom(ATOM_splat), a);
+  }
+
+  static Node*
   call_bin_op_gen(ParserState *p, Node *recv, const char *op, Node *arg)
   {
     return new_call(p, recv, op, new_first_arg(p, arg), 1);
@@ -723,6 +729,9 @@ stmt(A) ::= stmt(B) KW_modifier_until expr_value(C). {
               A = new_until(p, C, B);
             }
 stmt ::= command_asgn.
+stmt(A) ::= lhs(B) E mrhs(C). {
+              A = new_asgn(p, B, new_array(p, C));
+            }
 stmt ::= expr.
 
 command_asgn(A) ::= lhs(B) E command_rhs(C). {
@@ -782,7 +791,23 @@ opt_block_arg(A) ::= COMMA block_arg(B). { A = B; }
 opt_block_arg(A) ::= none. { A = 0; }
 
 args(A) ::= arg(B). { A = new_first_arg(p, B); }
-args(A) ::= args(B) COMMA arg(C). { A = list3(atom(ATOM_args_add), B, C); }
+args(A) ::= STAR arg(B). { A = new_first_arg(p, new_splat(p, B)); }
+args(A) ::= args(B) COMMA arg(C). {
+              A = list3(atom(ATOM_args_add), B, C);
+            }
+args(A) ::= args(B) COMMA STAR arg(C). {
+              A = list3(atom(ATOM_args_add), B, new_splat(p, C));
+            }
+
+mrhs(A) ::= args(B) COMMA arg(C). {
+              A = list3(atom(ATOM_args_add), B, C);
+            }
+mrhs(A) ::= args(B) COMMA STAR arg(C). {
+              A = list3(atom(ATOM_args_add), B, new_splat(p, C));
+            }
+mrhs(A) ::= STAR arg(B). {
+              A = new_first_arg(p, new_splat(p, B));
+            }
 
 arg(A) ::= lhs(B) E arg_rhs(C). { A = new_asgn(p, B, C); }
 arg(A) ::= var_lhs(B) OP_ASGN(C) arg_rhs(D). { A = new_op_asgn(p, B, C, D); }

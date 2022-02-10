@@ -1,6 +1,6 @@
 class UnaryTest < PicoRubyTest
   desc "after **(pow)"
-  assert_equal(<<~RUBY, "0") # mruby should return 0.01 though
+  assert_equal(<<~RUBY, ENV['PICORUBY'] ? "0" : "0.01")
     p 10**-2
   RUBY
 end

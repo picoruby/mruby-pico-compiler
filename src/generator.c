@@ -102,11 +102,23 @@ Scope *scope_unnest(Scope *scope)
 
 int gen_values(Scope *scope, Node *tree)
 {
+  uint8_t prev_splat_status = scope->splat_status;
+  scope->splat_status = 0;
   int nargs = 0;
+  int splat = 0;
   Node *node = tree;
   while (node != NULL) {
-    if (hasCdr(node) && hasCar(node->cons.cdr) && Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) {
+    if (hasCdr(node) &&
+        hasCar(node->cons.cdr) &&
+        Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) {
       nargs++;
+      Node *node2 = node->cons.cdr->cons.car;
+      if (hasCdr(node2) &&
+          hasCdr(node2->cons.cdr) &&
+          hasCar(node2->cons.cdr->cons.cdr) &&
+          Node_atomType(node2->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
+        splat = nargs;
+      }
     }
     if (node->cons.cdr != NULL) {
       node = node->cons.cdr->cons.car;
@@ -114,7 +126,18 @@ int gen_values(Scope *scope, Node *tree)
       node = NULL;
     }
   }
+  if (splat > 0) {
+    scope->splat_status = 1;
+    if (splat == nargs) {
+      Scope_pushCode(OP_LOADNIL);
+      Scope_pushCode(scope->sp);
+      Scope_push(scope);
+      scope->splat_status = 2;
+    }
+  }
   codegen(scope, tree->cons.cdr->cons.car);
+  scope->splat_status = prev_splat_status;
+  if (splat > 0) return -1;
   return nargs;
 }
 
@@ -267,8 +290,10 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
     } else {
       Scope_push(scope);
       nargs = gen_values(scope, node);
-      if (nargs > 0 && // case: method_name(1) { puts "hello" }
-                       Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
+      if (nargs < 0) {// splat
+        op = OP_SENDV;
+      } else if (nargs > 0 && // case: method_name(1) { puts "hello" }
+          Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
         op = OP_SENDB;
         nargs--;
       } else if (// case: method_name { puts "hello" }
@@ -305,16 +330,21 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
     Scope_pushCode(scope->sp);
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
-    Scope_pushCode(nargs);
+    if (op != OP_SENDV) Scope_pushCode(nargs);
   }
 }
 
 void gen_array(Scope *scope, Node *node)
 {
   int nargs = 0;
+  int sp = scope->sp;
   if (node->cons.cdr->cons.car) {
     nargs = gen_values(scope, node);
     scope->sp -= nargs;
+  }
+  if (nargs < 0) {
+    scope->sp = sp;
+    return;
   }
   Scope_pushCode(OP_ARRAY);
   Scope_pushCode(scope->sp);
@@ -384,6 +414,21 @@ void gen_var(Scope *scope, Node *node)
   }
 }
 
+void gen_splat(Scope *scope, Node *node)
+{
+  if (scope->splat_status == 1) {
+    Scope_pushCode(OP_ARRAY);
+    scope->sp -= scope->nargs_before_splat;
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(scope->nargs_before_splat);
+    scope->splat_status = 2;
+    Scope_push(scope);
+  }
+  codegen(scope, node->cons.car);
+  Scope_pushCode(OP_ARYCAT);
+  Scope_pushCode(--scope->sp);
+}
+
 void gen_assign(Scope *scope, Node *node)
 {
   int num;
@@ -431,7 +476,6 @@ void gen_assign(Scope *scope, Node *node)
       int reg = scope->sp;
       Scope_push(scope);
       codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
-      //gen_call(scope, node->cons.car->cons.cdr, false); /* left hand */
       Node *call_node = node->cons.car->cons.cdr->cons.cdr;
       int nargs = 0;
       if (call_node->cons.cdr->cons.car) {
@@ -714,13 +758,20 @@ void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[
   } else {
     gen_case_when(scope, node->cons.car->cons.cdr, cond_reg, label_true + 1);
     scope->sp = cond_reg;
-    codegen(scope, node->cons.car->cons.cdr->cons.cdr);
+    char *method;
+    if (Node_atomType(node->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
+      method = "__case_eqq";
+      codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr);
+    } else {
+      method = "===";
+      codegen(scope, node->cons.car->cons.cdr->cons.cdr);
+    }
     Scope_pushCode(OP_MOVE);
     Scope_pushCode(scope->sp + 1);
     Scope_pushCode(cond_reg - 1);
     Scope_pushCode(OP_SEND);
     Scope_pushCode(cond_reg);
-    Scope_pushCode(Scope_newSym(scope, "==="));
+    Scope_pushCode(Scope_newSym(scope, method));
     Scope_pushCode(1);
     /* when condition matched */
     Scope_pushCode(OP_JMPIF);
@@ -1108,7 +1159,11 @@ void gen_yield(Scope *scope, Node *node)
   Scope_pushCode(OP_SEND);
   Scope_pushCode(scope->sp);
   Scope_pushCode(Scope_newSym(scope, "call"));
-  Scope_pushCode(nargs);
+  if (nargs < 0) {
+    Scope_pushCode(127); //TODO ???????
+  } else {
+    Scope_pushCode(nargs);
+  }
 }
 
 void gen_return(Scope *scope, Node *node)
@@ -1197,6 +1252,14 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_args_add:
       codegen(scope, tree->cons.cdr);
+      if (scope->splat_status == 1) {
+        scope->nargs_before_splat++;
+      } else if (scope->splat_status == 2 &&
+          scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT) {
+        scope->nargs_before_splat = 0;
+        Scope_pushCode(OP_ARYPUSH);
+        Scope_pushCode(--scope->sp);
+      }
       Scope_push(scope);
       break;
     case ATOM_args_new:
@@ -1291,6 +1354,9 @@ void codegen(Scope *scope, Node *tree)
       gen_block(scope, tree);
       break;
     case ATOM_arg:
+      break;
+    case ATOM_splat:
+      gen_splat(scope, tree->cons.cdr);
       break;
     case ATOM_def:
       gen_def(scope, tree->cons.cdr);

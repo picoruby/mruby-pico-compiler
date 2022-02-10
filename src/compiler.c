@@ -66,14 +66,14 @@ void dumpCode(Scope *scope)
 
 void
 printToken(Tokenizer *tokenizer, Token *token) {
-  printf("\e[32;40;1m%s\e[m len=%ld line=%d pos=%2d \e[35;40;1m%s\e[m `\e[31;40;1m%s\e[m` \e[36;40;1m%s\e[m\n",
+  printf("\e[32;40;1mtoken> %s\e[m \e[35;40;1m%s\e[m `\e[31;40;1m%s\e[m` \e[36;40;1m%s\e[m len=%ld line=%d pos=%d\n",
      tokenizer_mode_name(tokenizer->mode),
-     strlen(token->value),
-     token->line_num,
-     token->pos,
      token_name(token->type),
      token->value,
-     tokenizer_state_name(token->state));
+     tokenizer_state_name(token->state),
+     strlen(token->value),
+     token->line_num,
+     token->pos);
 }
 
 bool Compiler_compile(ParserState *p, StreamInterface *si)
@@ -86,14 +86,8 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
   Token *topToken = tokenizer->currentToken;
   yyParser *parser = ParseAlloc(picorbc_alloc, p);
 #ifdef PICORUBY_DEBUG
-  FILE *traceFile;
   if (p->verbose) {
-    traceFile = tmpfile();
-    if (traceFile == NULL) {
-      printf("Failed to open traceFile!");
-      return false;
-    }
-    ParseTrace(traceFile, (char *)"parse> ");
+    ParseTrace(stdout, (char *)"parse> ");
   }
 #endif
   Type prevType = 0;
@@ -155,17 +149,6 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
   }
   Parse(parser, 0, "");
 FAIL:
-#ifdef PICORUBY_DEBUG
-  if (p->verbose) {
-    rewind(traceFile);
-    char ch = fgetc(traceFile);
-    while(ch != EOF) {
-      printf("%c", ch);
-      ch = fgetc(traceFile);
-    }
-    fclose(traceFile);
-  }
-#endif
   MyRegexCache_free();
   bool success;
   if (p->error_count == 0) {
@@ -173,9 +156,8 @@ FAIL:
     if (p->verbose) ParseShowAllNode(parser, 1);
     Generator_generate(p->scope, p->root_node_box->nodes, p->verbose);
   } else {
-    //ERRORP("Syntax error at line:%d\n%s", tokenizer->line_num - 1, tokenizer->line);
     // FIXME should print prev line
-    WARNP("Syntax error at line:%d", tokenizer->line_num - 1);
+    ERRORP("Syntax error at line:%d", tokenizer->line_num);
     success = false;
   }
   if (p->verbose && success) dumpCode(p->scope);

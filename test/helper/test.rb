@@ -13,7 +13,7 @@ class PicoRubyTest
     @@failure_struct = Struct.new(:filename, :description, :script, :expected, :actual)
     @@failures = []
     @@description = ""
-    @@picoruby_path = ENV['PICORUBY']
+    @@mruby_path = ENV['MRUBY_COMMAND']
   end
 
   def exit_code
@@ -62,7 +62,7 @@ class PicoRubyTest
       @@pending_count += 1
       return
     end
-    actual = `#{@@picoruby_path} -e '#{script}'`.chomp.gsub(/\r/, "")
+    actual = `#{@@mruby_path} -e '#{script}'`.chomp.gsub(/\r/, "")
     if actual == expected
       print "#{@@green}."
       @@success_count += 1

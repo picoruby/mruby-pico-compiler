@@ -39,7 +39,7 @@ class CaseTest < PicoRubyTest
 
   desc "case else"
   assert_equal(<<~RUBY, ":ruby")
-    dummy = 1
+    dummy = [1]
     res = case dummy[0]
     when 2
       false
