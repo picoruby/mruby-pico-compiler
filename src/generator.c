@@ -758,7 +758,7 @@ void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[
   } else {
     gen_case_when(scope, node->cons.car->cons.cdr, cond_reg, label_true + 1);
     scope->sp = cond_reg;
-    char *method;
+    const char *method;
     if (Node_atomType(node->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
       method = "__case_eqq";
       codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr);
