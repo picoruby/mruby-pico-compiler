@@ -102,8 +102,10 @@ Scope *scope_unnest(Scope *scope)
 
 int gen_values(Scope *scope, Node *tree)
 {
+  uint8_t prev_gen_splat_status = scope->gen_splat_status;
   uint8_t prev_gen_array_status = scope->gen_array_status;
-  scope->gen_array_status = GEN_ARRAY_STATUS_NONE;
+  uint8_t prev_gen_array_count = scope->gen_array_count;
+  scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int nargs = 0;
   int splat = 0;
   Node *node = tree;
@@ -127,16 +129,18 @@ int gen_values(Scope *scope, Node *tree)
     }
   }
   if (splat > 0) {
-    scope->gen_array_status = GEN_ARRAY_STATUS_BEFORE_SPLAT;
+    scope->gen_splat_status |= GEN_SPLAT_STATUS_BEFORE_SPLAT;
     if (splat == nargs) {
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
-      scope->gen_array_status = GEN_ARRAY_STATUS_AFTER_SPLAT;
+      scope->gen_splat_status |= GEN_SPLAT_STATUS_AFTER_SPLAT;
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
+  scope->gen_splat_status = prev_gen_splat_status;
   scope->gen_array_status = prev_gen_array_status;
+  scope->gen_array_count = prev_gen_array_count;
   if (splat > 0) return -1;
   return nargs;
 }
@@ -336,19 +340,30 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
 
 void gen_array(Scope *scope, Node *node)
 {
+  uint8_t prev_gen_array_status = scope->gen_array_status;
+  uint8_t prev_gen_array_count = scope->gen_array_count;
+  scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
+  scope->gen_array_count = 0;
   int nargs = 0;
   int sp = scope->sp;
   if (node->cons.cdr->cons.car) {
     nargs = gen_values(scope, node);
-    scope->sp -= nargs;
+    scope->sp--;
   }
   if (nargs < 0) {
     scope->sp = sp;
     return;
   }
-  Scope_pushCode(OP_ARRAY);
-  Scope_pushCode(scope->sp);
-  Scope_pushCode(nargs);
+  nargs %= PICORUBY_ARRAY_SPLIT_COUNT;
+  if (nargs) {
+    Scope_pushCode(OP_ARRAY);
+    Scope_pushCode(scope->sp--);
+    Scope_pushCode(nargs % PICORUBY_ARRAY_SPLIT_COUNT);
+    Scope_pushCode(OP_ADD);
+    Scope_pushCode(scope->sp);
+  }
+  scope->gen_array_status = prev_gen_array_status;
+  scope->gen_array_count = prev_gen_array_count;
 }
 
 void gen_hash(Scope *scope, Node *node)
@@ -416,12 +431,12 @@ void gen_var(Scope *scope, Node *node)
 
 void gen_splat(Scope *scope, Node *node)
 {
-  if (scope->gen_array_status == GEN_ARRAY_STATUS_BEFORE_SPLAT) {
+  if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
     Scope_pushCode(OP_ARRAY);
     scope->sp -= scope->nargs_before_splat;
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->nargs_before_splat);
-    scope->gen_array_status = GEN_ARRAY_STATUS_AFTER_SPLAT;
+    scope->gen_splat_status |= GEN_SPLAT_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
   codegen(scope, node->cons.car);
@@ -1252,10 +1267,27 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_args_add:
       codegen(scope, tree->cons.cdr);
-      if (scope->gen_array_status == GEN_ARRAY_STATUS_BEFORE_SPLAT) {
+      if (scope->gen_array_status > GEN_ARRAY_STATUS_NONE) {
+        if (scope->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
+          scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT;
+          Scope_pushCode(OP_ARRAY);
+          Scope_pushCode(++scope->sp);
+          Scope_pushCode(scope->gen_array_count + 1);
+          if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING) {
+            scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING_2;
+          } else if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_2) {
+            Scope_pushCode(OP_ADD);
+            Scope_pushCode(--scope->sp);
+          }
+          scope->gen_array_count = 0;
+        } else {
+          scope->gen_array_count++;
+        }
+      }
+      if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
         scope->nargs_before_splat++;
       } else if (
-          scope->gen_array_status == GEN_ARRAY_STATUS_AFTER_SPLAT &&
+          scope->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
           scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
         ) {
         scope->nargs_before_splat = 0;

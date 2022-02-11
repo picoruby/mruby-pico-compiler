@@ -115,18 +115,18 @@ typedef struct scope
   BreakStack *break_stack;
   AssignSymbol *last_assign_symbol;
   Backpatch *backpatch; /* for backpatching of JMP label */
+  int nargs_before_splat;
+  uint8_t gen_splat_status;
   uint8_t gen_array_status;
   uint8_t gen_array_count;
-  int nargs_before_splat;
 } Scope;
 
+#define GEN_SPLAT_STATUS_NONE          0b00000000
+#define GEN_SPLAT_STATUS_BEFORE_SPLAT  0b00000001
+#define GEN_SPLAT_STATUS_AFTER_SPLAT   0b00000010
 #define GEN_ARRAY_STATUS_NONE          0b00000000
-#define GEN_ARRAY_STATUS_BEFORE_SPLAT  0b00000001
-#define GEN_ARRAY_STATUS_AFTER_SPLAT   0b00000010
-#define GEN_ARRAY_STATUS_GENERATING    0b10000000
-#ifndef PICORUBY_ARRAY_MAX_COUNT
-#define PICORUBY_ARRAY_MAX_COUNT 64
-#endif
+#define GEN_ARRAY_STATUS_GENERATING    0b00000001
+#define GEN_ARRAY_STATUS_GENERATING_2  0b00000010
 
 Scope *Scope_new(Scope *upper, bool lvar_top);
 

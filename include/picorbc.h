@@ -22,4 +22,8 @@
 #include "stream.h"
 #include "parse.h"
 
+#ifndef PICORUBY_ARRAY_SPLIT_COUNT
+#define PICORUBY_ARRAY_SPLIT_COUNT 64
+#endif
+
 #endif /* PICORBC_PICORBC_H_ */
