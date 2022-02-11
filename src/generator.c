@@ -102,9 +102,6 @@ Scope *scope_unnest(Scope *scope)
 
 int gen_values(Scope *scope, Node *tree)
 {
-  uint8_t prev_gen_splat_status = scope->gen_splat_status;
-  uint8_t prev_gen_array_status = scope->gen_array_status;
-  uint8_t prev_gen_array_count = scope->gen_array_count;
   scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int nargs = 0;
   int splat = 0;
@@ -138,9 +135,6 @@ int gen_values(Scope *scope, Node *tree)
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
-  scope->gen_splat_status = prev_gen_splat_status;
-  scope->gen_array_status = prev_gen_array_status;
-  scope->gen_array_count = prev_gen_array_count;
   if (splat > 0) return -1;
   return nargs;
 }
@@ -340,6 +334,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
 
 void gen_array(Scope *scope, Node *node)
 {
+  uint8_t prev_gen_splat_status = scope->gen_splat_status;
   uint8_t prev_gen_array_status = scope->gen_array_status;
   uint8_t prev_gen_array_count = scope->gen_array_count;
   scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
@@ -348,20 +343,29 @@ void gen_array(Scope *scope, Node *node)
   int sp = scope->sp;
   if (node->cons.cdr->cons.car) {
     nargs = gen_values(scope, node);
-    scope->sp--;
   }
   if (nargs < 0) {
     scope->sp = sp;
-    return;
-  }
-  nargs %= PICORUBY_ARRAY_SPLIT_COUNT;
-  if (nargs) {
+  } else if (nargs == 0) {
     Scope_pushCode(OP_ARRAY);
-    Scope_pushCode(scope->sp--);
-    Scope_pushCode(nargs % PICORUBY_ARRAY_SPLIT_COUNT);
-    Scope_pushCode(OP_ADD);
     Scope_pushCode(scope->sp);
+    Scope_pushCode(0);
+  } else {
+    nargs %= PICORUBY_ARRAY_SPLIT_COUNT;
+    if (nargs) {
+      scope->sp -= nargs;
+      Scope_pushCode(OP_ARRAY);
+      Scope_pushCode(scope->sp);
+      Scope_pushCode(nargs);
+      if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
+        Scope_pushCode(OP_ARYCAT);
+        Scope_pushCode(--scope->sp);
+      }
+    } else {
+      scope->sp--;
+    }
   }
+  scope->gen_splat_status = prev_gen_splat_status;
   scope->gen_array_status = prev_gen_array_status;
   scope->gen_array_count = prev_gen_array_count;
 }
@@ -371,6 +375,7 @@ void gen_hash(Scope *scope, Node *node)
   int reg = scope->sp;
   int nassocs = 0;
   Node *assoc = node;
+  bool split = false;
   while (assoc) {
     codegen(scope, assoc->cons.car->cons.cdr->cons.car->cons.cdr->cons.car);
     Scope_push(scope);
@@ -378,11 +383,35 @@ void gen_hash(Scope *scope, Node *node)
     Scope_push(scope);
     nassocs++;
     assoc = assoc->cons.cdr;
+    if (nassocs % PICORUBY_HASH_SPLIT_COUNT == 0) {
+      if (!split) {
+        Scope_pushCode(OP_HASH);
+      } else {
+        Scope_pushCode(OP_HASHADD);
+      }
+      Scope_pushCode(reg);
+      Scope_pushCode(PICORUBY_HASH_SPLIT_COUNT);
+      scope->sp = reg + 1;
+      split = true;
+    }
+  }
+  if (nassocs == 0) {
+    Scope_pushCode(OP_HASH);
+    Scope_pushCode(reg);
+    Scope_pushCode(0);
+  } else {
+    nassocs %= PICORUBY_HASH_SPLIT_COUNT;
+    if (nassocs) {
+      if (!split) {
+        Scope_pushCode(OP_HASH);
+      } else {
+        Scope_pushCode(OP_HASHADD);
+      }
+      Scope_pushCode(reg);
+      Scope_pushCode(nassocs);
+    }
   }
   scope->sp = reg;
-  Scope_pushCode(OP_HASH);
-  Scope_pushCode(scope->sp);
-  Scope_pushCode(nassocs);
 }
 
 void gen_var(Scope *scope, Node *node)
@@ -1269,16 +1298,15 @@ void codegen(Scope *scope, Node *tree)
       codegen(scope, tree->cons.cdr);
       if (scope->gen_array_status > GEN_ARRAY_STATUS_NONE) {
         if (scope->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
-          scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT;
+          scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT - 1;
           Scope_pushCode(OP_ARRAY);
-          Scope_pushCode(++scope->sp);
+          Scope_pushCode(scope->sp);
           Scope_pushCode(scope->gen_array_count + 1);
-          if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING) {
-            scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING_2;
-          } else if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_2) {
+          if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
             Scope_pushCode(OP_ADD);
             Scope_pushCode(--scope->sp);
           }
+          scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING_SPLIT;
           scope->gen_array_count = 0;
         } else {
           scope->gen_array_count++;

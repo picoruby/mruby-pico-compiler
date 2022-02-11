@@ -26,4 +26,8 @@
 #define PICORUBY_ARRAY_SPLIT_COUNT 64
 #endif
 
+#ifndef PICORUBY_HASH_SPLIT_COUNT
+#define PICORUBY_HASH_SPLIT_COUNT 64 // TODO: Alter into `32` when mruby/c implements OP_HASHADD
+#endif
+
 #endif /* PICORBC_PICORBC_H_ */
