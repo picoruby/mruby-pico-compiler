@@ -102,8 +102,8 @@ Scope *scope_unnest(Scope *scope)
 
 int gen_values(Scope *scope, Node *tree)
 {
-  uint8_t prev_splat_status = scope->splat_status;
-  scope->splat_status = 0;
+  uint8_t prev_gen_array_status = scope->gen_array_status;
+  scope->gen_array_status = GEN_ARRAY_STATUS_NONE;
   int nargs = 0;
   int splat = 0;
   Node *node = tree;
@@ -127,16 +127,16 @@ int gen_values(Scope *scope, Node *tree)
     }
   }
   if (splat > 0) {
-    scope->splat_status = 1;
+    scope->gen_array_status = GEN_ARRAY_STATUS_BEFORE_SPLAT;
     if (splat == nargs) {
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
-      scope->splat_status = 2;
+      scope->gen_array_status = GEN_ARRAY_STATUS_AFTER_SPLAT;
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
-  scope->splat_status = prev_splat_status;
+  scope->gen_array_status = prev_gen_array_status;
   if (splat > 0) return -1;
   return nargs;
 }
@@ -416,12 +416,12 @@ void gen_var(Scope *scope, Node *node)
 
 void gen_splat(Scope *scope, Node *node)
 {
-  if (scope->splat_status == 1) {
+  if (scope->gen_array_status == GEN_ARRAY_STATUS_BEFORE_SPLAT) {
     Scope_pushCode(OP_ARRAY);
     scope->sp -= scope->nargs_before_splat;
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->nargs_before_splat);
-    scope->splat_status = 2;
+    scope->gen_array_status = GEN_ARRAY_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
   codegen(scope, node->cons.car);
@@ -1252,10 +1252,12 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_args_add:
       codegen(scope, tree->cons.cdr);
-      if (scope->splat_status == 1) {
+      if (scope->gen_array_status == GEN_ARRAY_STATUS_BEFORE_SPLAT) {
         scope->nargs_before_splat++;
-      } else if (scope->splat_status == 2 &&
-          scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT) {
+      } else if (
+          scope->gen_array_status == GEN_ARRAY_STATUS_AFTER_SPLAT &&
+          scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
+        ) {
         scope->nargs_before_splat = 0;
         Scope_pushCode(OP_ARYPUSH);
         Scope_pushCode(--scope->sp);
