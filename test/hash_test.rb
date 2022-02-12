@@ -1,5 +1,7 @@
 class HashTest < PicoRubyTest
-  unless ENV['PICORUBY']
+
+  if @@vm_select == :mruby
+
     desc "Generating a hash"
     assert_equal(<<~RUBY, '{:a=>1, "b"=>"2", :c=>true}')
       hash = {a: 1, "b" => "2", c: true}
@@ -29,5 +31,7 @@ class HashTest < PicoRubyTest
       p hash[:k39]
       p hash[:k79]
     RUBY
+
   end
+
 end

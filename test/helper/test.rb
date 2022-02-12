@@ -1,5 +1,8 @@
 #! /usr/bin/env ruby
 
+require 'rake/file_list'
+require "tempfile"
+
 class PicoRubyTest
   def initialize
     @@pending = false
@@ -14,6 +17,15 @@ class PicoRubyTest
     @@failures = []
     @@description = ""
     @@mruby_path = ENV['MRUBY_COMMAND']
+    @@picorbc_path = ENV['PICORBC_COMMAND']
+    @@vm_select = ENV['USE_MRUBY'] ? :mruby : :mrubyc
+    puts
+    puts <<~"PREFACE"
+      Virtual machine: #{@@vm_select}
+      mruby_path:      #{@@mruby_path}
+      picorbc_path:    #{@@picorbc_path}
+    PREFACE
+    puts
   end
 
   def exit_code
@@ -62,7 +74,21 @@ class PicoRubyTest
       @@pending_count += 1
       return
     end
-    actual = `#{@@mruby_path} -e '#{script}'`.chomp.gsub(/\r/, "")
+    if @@vm_select == :mruby
+      rbfile = String.new
+      mrbfile = String.new
+      Tempfile.open do |f|
+        f.puts script
+        rbfile = f.path
+      end
+      Tempfile.open do |f|
+        mrbfile = f.path
+        `#{@@picorbc_path} #{rbfile} -o #{mrbfile}`
+      end
+      actual = `#{@@mruby_path} -b '#{mrbfile}'`.chomp.gsub(/\r/, "")
+    else
+      actual = `#{@@mruby_path} -e '#{script}'`.chomp.gsub(/\r/, "")
+    end
     if actual == expected
       print "#{@@green}."
       @@success_count += 1

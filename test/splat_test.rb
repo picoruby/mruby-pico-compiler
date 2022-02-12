@@ -1,5 +1,7 @@
 class SplatTest < PicoRubyTest
-  unless ENV['PICORUBY']
+
+  if @@vm_select == :mruby
+
     desc "splat in fcall 1"
     assert_equal(<<~RUBY, "1")
       p(*1)
@@ -38,6 +40,8 @@ class SplatTest < PicoRubyTest
         puts "hey"
       end
     RUBY
+
   end
+
 end
 
