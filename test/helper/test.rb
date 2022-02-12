@@ -1,5 +1,6 @@
 #! /usr/bin/env ruby
 
+require 'fileutils'
 require 'rake/file_list'
 require "tempfile"
 
@@ -77,12 +78,16 @@ class PicoRubyTest
     if @@vm_select == :mruby
       rbfile = String.new
       mrbfile = String.new
+      actual = nil
       Tempfile.open do |f|
         f.puts script
         rbfile = f.path
       end
       Tempfile.open do |f|
         mrbfile = f.path
+        # For GitHub Actions
+        FileUtils.chmod 0755, rbfile
+        FileUtils.chmod 0755, mrbfile
         `#{@@picorbc_path} #{rbfile} -o #{mrbfile}`
       end
       actual = `#{@@mruby_path} -b '#{mrbfile}'`.chomp.gsub(/\r/, "")
