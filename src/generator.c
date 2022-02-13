@@ -102,6 +102,7 @@ Scope *scope_unnest(Scope *scope)
 
 int gen_values(Scope *scope, Node *tree)
 {
+  uint8_t prev_gen_splat_status = scope->gen_splat_status;
   scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int nargs = 0;
   int splat = 0;
@@ -126,15 +127,16 @@ int gen_values(Scope *scope, Node *tree)
     }
   }
   if (splat > 0) {
-    scope->gen_splat_status |= GEN_SPLAT_STATUS_BEFORE_SPLAT;
-    if (splat == nargs) {
+    scope->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
+    if (splat == nargs) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
-      scope->gen_splat_status |= GEN_SPLAT_STATUS_AFTER_SPLAT;
+      scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
+  scope->gen_splat_status = prev_gen_splat_status;
   if (splat > 0) return -1;
   return nargs;
 }
@@ -334,7 +336,6 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
 
 void gen_array(Scope *scope, Node *node)
 {
-  uint8_t prev_gen_splat_status = scope->gen_splat_status;
   uint8_t prev_gen_array_status = scope->gen_array_status;
   uint8_t prev_gen_array_count = scope->gen_array_count;
   scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
@@ -365,7 +366,6 @@ void gen_array(Scope *scope, Node *node)
       scope->sp--;
     }
   }
-  scope->gen_splat_status = prev_gen_splat_status;
   scope->gen_array_status = prev_gen_array_status;
   scope->gen_array_count = prev_gen_array_count;
 }
@@ -465,7 +465,7 @@ void gen_splat(Scope *scope, Node *node)
     scope->sp -= scope->nargs_before_splat;
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->nargs_before_splat);
-    scope->gen_splat_status |= GEN_SPLAT_STATUS_AFTER_SPLAT;
+    scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
   codegen(scope, node->cons.car);
@@ -1315,9 +1315,10 @@ void codegen(Scope *scope, Node *tree)
       if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
         scope->nargs_before_splat++;
       } else if (
-          scope->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
-          scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
-        ) {
+        scope->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
+        scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
+        )
+      {
         scope->nargs_before_splat = 0;
         Scope_pushCode(OP_ARYPUSH);
         Scope_pushCode(--scope->sp);
