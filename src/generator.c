@@ -1118,6 +1118,51 @@ void gen_def(Scope *scope, Node *node)
   gen_irep(scope, node->cons.cdr->cons.cdr);
 }
 
+void gen_module(Scope *scope, Node *node)
+{
+  int litIndex;
+  Scope_pushCode(OP_LOADNIL);
+  Scope_pushCode(scope->sp);
+  /*
+   * TODO: `::CONST` `CONST::CONST`
+   */
+  Scope_pushCode(OP_MODULE);
+  Scope_pushCode(scope->sp);
+  litIndex = Scope_newSym(scope, Node_literalName(node));
+  Scope_pushCode(litIndex);
+  if (node->cons.cdr->cons.car->cons.cdr == NULL) {
+    /* empty class */
+    Scope_pushCode(OP_LOADNIL);
+    Scope_pushCode(scope->sp);
+    Scope *target = scope->first_lower;
+    Scope *prev = NULL;
+    for (uint16_t i = 0; i < scope->next_lower_number; i++) {
+      prev = target;
+      target = target->next;
+    }
+    if (prev) {
+      prev->next = target->next; /* possibly NULL */
+    } else {
+      scope->first_lower = target->next;
+    }
+    scope->nlowers--;
+    picorbc_free(target->first_code_pool); /* should be only one */
+    target->next = NULL;
+    Scope_free(target);
+  } else {
+//    node->cons.cdr->cons.car = NULL; /* Stop generating super class CONST */
+    Scope_pushCode(OP_EXEC);
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(scope->next_lower_number);
+    scope = scope_nest(scope);
+    codegen(scope, node->cons.cdr);
+    Scope_pushCode(OP_RETURN);
+    Scope_pushCode(scope->sp);
+    Scope_finish(scope);
+    scope = scope_unnest(scope);
+  }
+}
+
 void gen_class(Scope *scope, Node *node)
 {
   int litIndex;
@@ -1165,7 +1210,6 @@ void gen_class(Scope *scope, Node *node)
     Scope_pushCode(OP_EXEC);
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->next_lower_number);
-
     scope = scope_nest(scope);
     codegen(scope, node->cons.cdr);
     Scope_pushCode(OP_RETURN);
@@ -1426,6 +1470,9 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_class:
       gen_class(scope, tree->cons.cdr);
+      break;
+    case ATOM_module:
+      gen_module(scope, tree->cons.cdr);
       break;
     case ATOM_alias:
       gen_alias(scope, tree->cons.cdr);

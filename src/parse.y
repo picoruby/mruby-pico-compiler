@@ -401,6 +401,12 @@
   }
 
   static Node*
+  new_module(ParserState *p, Node *c, Node *b)
+  {
+    return list3(atom(ATOM_module), c->cons.car, b);
+  }
+
+  static Node*
   new_def(ParserState *p, const char* m, Node *a, Node *b)
   {
     return list5(atom(ATOM_def), literal(m), 0, a, b);
@@ -946,6 +952,17 @@ primary(A) ::=  class_head(B)
                 bodystmt(C)
                 KW_end. {
                   A = new_class(p, B, C);
+                  scope_unnest(p);
+                }
+module_head(A) ::= KW_module cpath(B). {
+                    // TODO: raise error if (p->in_def || p->in_single)
+                    A = cons(B, NULL);
+                    scope_nest(p, true);
+                  }
+primary(A) ::=  module_head(B)
+                bodystmt(C)
+                KW_end. {
+                  A = new_module(p, B, C);
                   scope_unnest(p);
                 }
 primary(A) ::=  defn_head(B) f_arglist(C)
