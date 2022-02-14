@@ -12,6 +12,7 @@
 #include <opcode.h>
 #include <parse_header.h>
 #include <dump.h>
+#include <my_regex.h>
 
 #define END_SECTION_SIZE 8
 
@@ -217,7 +218,11 @@ void gen_int(Scope *scope, Node *node, Misc is_neg)
       val = strtol(value+2, NULL, 16);
       break;
     default:
-      val = strtol(value, NULL, 10);
+      if (Regex_match2(value, "^[0][0-7]+$")) {
+        val = strtol(value, NULL, 8);
+      } else {
+        val = strtol(value, NULL, 10);
+      }
   }
   if (!is_neg && 0 <= val && val <= 7) {
     Scope_pushCode(OP_LOADI_0 + val);

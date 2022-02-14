@@ -46,4 +46,9 @@ class IntegerTest < PicoRubyTest
   assert_equal(<<~RUBY, "-7000")
     p(-7000.001.to_i)
   RUBY
+
+  desc "0755 is eq tp 0o755"
+  assert_equal(<<~RUBY, "493")
+    p 0755
+  RUBY
 end

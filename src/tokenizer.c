@@ -808,6 +808,10 @@ retry:
         }
       } else if (Regex_match3(&(self->line[self->pos]), "^([0-9_]+)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        if (value[0] == '0' && Regex_match2(value, "[8-9]")) {
+          ERRORP("Invalid octal digit");
+          return 1;
+        }
         if (Regex_match3(&(self->line[self->pos + strlen(value)]), "^([eE][+\\-]?[0-9_]+)", regexResult)) {
           strsafecpy(value + strlen(value), regexResult[0].value, MAX_TOKEN_LENGTH);
           type = FLOAT;
