@@ -272,7 +272,7 @@ void gen_int(Scope *scope, Node *node, Misc is_neg)
   }
 }
 
-void gen_call(Scope *scope, Node *node, bool is_fcall)
+void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
 {
   int nargs = 0;
   int op = OP_SEND;
@@ -283,6 +283,16 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
   } else {
     codegen(scope, node->cons.car);
     node = node->cons.cdr;
+  }
+  JmpLabel *jmpLabel;
+  if (is_scall) {
+    Scope_pushCode(OP_MOVE);
+    Scope_push(scope);
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(scope->sp - 1);
+    Scope_pushCode(OP_JMPNIL);
+    Scope_pushCode(scope->sp);
+    jmpLabel = Scope_reserveJmpLabel(scope);
   }
   // args
   if (node->cons.cdr->cons.car) {
@@ -337,6 +347,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall)
     Scope_pushCode(symIndex);
     if (op != OP_SENDV) Scope_pushCode(nargs);
   }
+  if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
 
 void gen_array(Scope *scope, Node *node)
@@ -1358,10 +1369,13 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_command:
     case ATOM_fcall:
-      gen_call(scope, tree->cons.cdr, true);
+      gen_call(scope, tree->cons.cdr, true, false);
       break;
     case ATOM_call:
-      gen_call(scope, tree->cons.cdr, false);
+      gen_call(scope, tree->cons.cdr, false, false);
+      break;
+    case ATOM_scall:
+      gen_call(scope, tree->cons.cdr, false, true);
       break;
     case ATOM_args_add:
       codegen(scope, tree->cons.cdr);

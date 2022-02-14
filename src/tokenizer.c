@@ -767,7 +767,12 @@ retry:
               type = XOR;
               break;
             case '&':
-              if (IS_BEG()) {
+              if (self->line[self->pos + 1] == '.') {
+                value[1] = '.';
+                value[2] = '\0';
+                type = ANDDOT;
+                self->p->state = EXPR_DOT;
+              } else if (IS_BEG()) {
                 type = AMPER;
               } else {
                 type = AND;

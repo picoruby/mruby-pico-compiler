@@ -1153,6 +1153,7 @@ brace_block(A) ::= scope_nest_KW_do
                    }
 
 call_op(A) ::= PERIOD. { A = '.'; }
+call_op(A) ::= ANDDOT. { A = 0; }
 
 opt_paren_args ::= none.
 opt_paren_args ::= paren_args.
