@@ -12,7 +12,6 @@ class ModuleTest < PicoRubyTest
       include A
       self.a
     RUBY
-
   end
 
 end

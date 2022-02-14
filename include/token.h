@@ -18,7 +18,8 @@ typedef enum state
   EXPR_ARG_ANY = 0b00000001100000,
   EXPR_MID     = 0b00000010000000, /* right after return break rescue. binary op like * & will be invalid. newline significant, +/- is a operator. */
   EXPR_FNAME   = 0b00000100000000, /* right after def, alias, undef, : of a symbol. ` becomes a name. ignore newline, no reserved words. */
-  EXPR_DOT     = 0b00001000000000, /* right after `.' or `::', no reserved words. */
+  EXPR_DOT     = 0b00001000000000, /* right after `.', no reserved words. */
+  EXPR_COLON2  = 0b100000000000000, /* right after `::', no reserved words. */
   EXPR_CLASS   = 0b00010000000000, /* immediate after `class', no here document. */
   EXPR_BEG_ANY = 0b00010010000010,
   EXPR_LABEL   = 0b00100000000000,

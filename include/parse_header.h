@@ -82,6 +82,8 @@ typedef enum atom_type {
   ATOM_alias,
   ATOM_dot2,
   ATOM_dot3,
+  ATOM_colon2,
+  ATOM_colon3,
   ATOM_splat,
 } AtomType;
 

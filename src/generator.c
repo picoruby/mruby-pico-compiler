@@ -949,6 +949,31 @@ void gen_dot2_3(Scope *scope, Node *node, int op)
   Scope_pushCode(--scope->sp);
 }
 
+void gen_colon2(Scope *scope, Node *node)
+{
+  if (Node_atomType(node->cons.car) == ATOM_at_const) {
+    Scope_pushCode(OP_GETCONST);
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr)));
+  } else {
+    /* Should be colon2 or none */
+    codegen(scope, node->cons.car);
+  }
+  //codegen(scope, node->cons.cdr->cons.car);
+  Scope_pushCode(OP_GETMCNST);
+  Scope_pushCode(scope->sp);
+  Scope_pushCode(Scope_newSym(scope, Node_literalName(node->cons.cdr->cons.car)));
+}
+
+void gen_colon3(Scope *scope, Node *node)
+{
+  Scope_pushCode(OP_OCLASS);
+  Scope_pushCode(scope->sp);
+  Scope_pushCode(OP_GETMCNST);
+  Scope_pushCode(scope->sp);
+  Scope_pushCode(Scope_newSym(scope, Node_literalName(node)));
+}
+
 void gen_while(Scope *scope, Node *node, int op_jmp)
 {
   push_nest_stack(scope, 0); /* 0 represents CONDITION NEST */
@@ -1118,76 +1143,62 @@ void gen_def(Scope *scope, Node *node)
   gen_irep(scope, node->cons.cdr->cons.cdr);
 }
 
-void gen_module(Scope *scope, Node *node)
+void gen_class_module(Scope *scope, Node *node, AtomType type)
 {
   int litIndex;
-  Scope_pushCode(OP_LOADNIL);
-  Scope_pushCode(scope->sp);
-  /*
-   * TODO: `::CONST` `CONST::CONST`
-   */
-  Scope_pushCode(OP_MODULE);
-  Scope_pushCode(scope->sp);
-  litIndex = Scope_newSym(scope, Node_literalName(node));
-  Scope_pushCode(litIndex);
-  if (node->cons.cdr->cons.car->cons.cdr == NULL) {
-    /* empty class */
-    Scope_pushCode(OP_LOADNIL);
-    Scope_pushCode(scope->sp);
-    Scope *target = scope->first_lower;
-    Scope *prev = NULL;
-    for (uint16_t i = 0; i < scope->next_lower_number; i++) {
-      prev = target;
-      target = target->next;
-    }
-    if (prev) {
-      prev->next = target->next; /* possibly NULL */
+  bool colon2_flag = false;
+  if (type == ATOM_module) {
+    if (Node_atomType(node->cons.car) == ATOM_colon2) {
+      codegen(scope, node->cons.car->cons.cdr);
+      colon2_flag = true;
+    } else if (Node_atomType(node->cons.car) == ATOM_colon3) {
+      Scope_pushCode(OP_OCLASS);
+      Scope_pushCode(scope->sp);
     } else {
-      scope->first_lower = target->next;
+      Scope_pushCode(OP_LOADNIL);
+      Scope_pushCode(scope->sp);
     }
-    scope->nlowers--;
-    picorbc_free(target->first_code_pool); /* should be only one */
-    target->next = NULL;
-    Scope_free(target);
-  } else {
-//    node->cons.cdr->cons.car = NULL; /* Stop generating super class CONST */
-    Scope_pushCode(OP_EXEC);
+    Scope_pushCode(OP_MODULE);
     Scope_pushCode(scope->sp);
-    Scope_pushCode(scope->next_lower_number);
-    scope = scope_nest(scope);
-    codegen(scope, node->cons.cdr);
-    Scope_pushCode(OP_RETURN);
-    Scope_pushCode(scope->sp);
-    Scope_finish(scope);
-    scope = scope_unnest(scope);
-  }
-}
-
-void gen_class(Scope *scope, Node *node)
-{
-  int litIndex;
-  Scope_pushCode(OP_LOADNIL);
-  Scope_pushCode(scope->sp);
-  Scope_push(scope);
-  /*
-   * TODO: `::Klass` `Klass::Glass`
-   */
-  if (Node_atomType(node->cons.cdr->cons.car) == ATOM_at_const) {
-    Scope_pushCode(OP_GETCONST);
-    Scope_pushCode(scope->sp--);
-    litIndex = Scope_newSym(scope, Node_literalName(node->cons.cdr->cons.car->cons.cdr));
+    if (colon2_flag) {
+      litIndex = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr->cons.cdr->cons.car));
+    } else {
+      litIndex = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr));
+    }
     Scope_pushCode(litIndex);
-  } else {
-    Scope_pushCode(OP_LOADNIL);
-    Scope_pushCode(scope->sp--);
+  } else { /* ATOM_class */
+    if (Node_atomType(node->cons.car) == ATOM_colon2) {
+      codegen(scope, node->cons.car->cons.cdr);
+      colon2_flag = true;
+    } else {
+      if (Node_atomType(node->cons.car) == ATOM_colon3) {
+        Scope_pushCode(OP_OCLASS);
+      } else {
+        Scope_pushCode(OP_LOADNIL);
+      }
+      Scope_pushCode(scope->sp);
+    }
+    Scope_push(scope);
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_at_const) {
+      Scope_pushCode(OP_GETCONST);
+      Scope_pushCode(scope->sp--);
+      litIndex = Scope_newSym(scope, Node_literalName(node->cons.cdr->cons.car->cons.cdr));
+      Scope_pushCode(litIndex);
+    } else {
+      Scope_pushCode(OP_LOADNIL);
+      Scope_pushCode(scope->sp--);
+    }
+    Scope_pushCode(OP_CLASS);
+    Scope_pushCode(scope->sp);
+    if (colon2_flag) {
+      litIndex = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr->cons.cdr->cons.car));
+    } else {
+      litIndex = Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr));
+    }
+    Scope_pushCode(litIndex);
   }
-  Scope_pushCode(OP_CLASS);
-  Scope_pushCode(scope->sp);
-  litIndex = Scope_newSym(scope, Node_literalName(node));
-  Scope_pushCode(litIndex);
-
   if (node->cons.cdr->cons.cdr->cons.car->cons.cdr == NULL) {
-    /* empty class */
+    /* empty class/module */
     Scope_pushCode(OP_LOADNIL);
     Scope_pushCode(scope->sp);
     Scope *target = scope->first_lower;
@@ -1206,7 +1217,9 @@ void gen_class(Scope *scope, Node *node)
     target->next = NULL;
     Scope_free(target);
   } else {
-    node->cons.cdr->cons.car = NULL; /* Stop generating super class CONST */
+    if (type == ATOM_class) {
+      node->cons.cdr->cons.car = NULL; /* Stop generating super class CONST */
+    }
     Scope_pushCode(OP_EXEC);
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->next_lower_number);
@@ -1271,7 +1284,7 @@ void gen_return(Scope *scope, Node *node)
 void codegen(Scope *scope, Node *tree)
 {
   int num;
-  if (tree == NULL || Node_isAtom(tree)) return;
+  if (tree == NULL || !Node_isCons(tree)) return;
   switch (Node_atomType(tree)) {
     case ATOM_and:
       gen_and_or(scope, tree->cons.cdr, OP_JMPNOT);
@@ -1469,10 +1482,8 @@ void codegen(Scope *scope, Node *tree)
       gen_def(scope, tree->cons.cdr);
       break;
     case ATOM_class:
-      gen_class(scope, tree->cons.cdr);
-      break;
     case ATOM_module:
-      gen_module(scope, tree->cons.cdr);
+      gen_class_module(scope, tree->cons.cdr, Node_atomType(tree));
       break;
     case ATOM_alias:
       gen_alias(scope, tree->cons.cdr);
@@ -1482,6 +1493,12 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_dot3:
       gen_dot2_3(scope, tree->cons.cdr, OP_RANGE_EXC);
+      break;
+    case ATOM_colon2:
+      gen_colon2(scope, tree->cons.cdr);
+      break;
+    case ATOM_colon3:
+      gen_colon3(scope, tree->cons.cdr);
       break;
     default:
       // FIXME: `Unkown OP code: 2e`

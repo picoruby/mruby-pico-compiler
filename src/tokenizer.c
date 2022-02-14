@@ -499,6 +499,15 @@ retry:
         }
         self->p->state = EXPR_BEG;
         break;
+      case ':':
+        if (IS_BEG() || p->state == EXPR_CLASS) { // || IS_SPCARG(-1)) {
+          self->p->state = EXPR_BEG;
+          type = COLON3;
+        } else {
+          self->p->state = EXPR_COLON2;
+          type = COLON2;
+        }
+        break;
       default:
         FATALP("error");
         break;
@@ -819,7 +828,12 @@ retry:
       type = PERIOD;
       self->p->state = EXPR_DOT;
     } else if (Regex_match2(&(self->line[self->pos]), "^\\w")) {
-      if (Regex_match3(&(self->line[self->pos]), "^([A-Za-z0-9_?!]+:)", regexResult)) {
+      if (Regex_match3(&(self->line[self->pos]), "^([A-Z][A-Za-z0-9_]*::)", regexResult)) {
+        strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        value[strlen(value) - 2] = '\0';
+        type = CONSTANT;
+        self->p->state = EXPR_CMDARG;
+      } else if (Regex_match3(&(self->line[self->pos]), "^([A-Za-z0-9_?!]+:)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         value[strlen(value) - 1] = '\0';
         self->pos++;
@@ -885,6 +899,7 @@ retry:
       type = (uint8_t)kw_num;
       switch (type) {
         case KW_class:
+        case KW_module:
           if (self->p->state == EXPR_BEG) {
             self->p->state = EXPR_CLASS;
           } else {

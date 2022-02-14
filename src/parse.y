@@ -403,7 +403,8 @@
   static Node*
   new_module(ParserState *p, Node *c, Node *b)
   {
-    return list3(atom(ATOM_module), c->cons.car, b);
+    return list4(atom(ATOM_module), c->cons.car, NULL, b);
+    //return list4(atom(ATOM_module), c->cons.cdr, NULL, b);
   }
 
   static Node*
@@ -534,6 +535,18 @@
   new_next(ParserState *p, Node *b)
   {
     return list2(atom(ATOM_next), b);
+  }
+
+  static Node*
+  new_colon2(ParserState *p, Node *b, Node *c)
+  {
+    return list3(atom(ATOM_colon2), b, list1(literal(c)));
+  }
+
+  static Node*
+  new_colon3(ParserState *p, Node *b)
+  {
+    return list2(atom(ATOM_colon3), literal(b));
   }
 
   static Node*
@@ -881,10 +894,15 @@ lhs(A) ::= primary_value(B) call_op(C) IDENTIFIER(D). { A = new_call(p, B, D, 0,
 
 cname ::= CONSTANT.
 
-cpath(A) ::= cname(B).  {
-                          A = literal(B);
-                          //A = cons(nint(0), literal(B));
-                        }
+cpath(A) ::= COLON3 cname(B). {
+  A = new_colon3(p, B);
+}
+cpath(A) ::= cname(B). {
+  A = list2(NULL, literal(B));
+}
+cpath(A) ::= primary_value(B) COLON2 cname(C). {
+  A = new_colon2(p, B, C);
+}
 
 var_lhs ::= variable.
 
@@ -901,6 +919,8 @@ primary(A)  ::= LPAREN compstmt(B) rparen. {
                   A = B;
                 }
 primary(A)  ::= LBRACKET_ARRAY aref_args(B) RBRACKET. { A = new_array(p, B); }
+primary(A)  ::= primary_value(B) COLON2 CONSTANT(C). { A = new_colon2(p, B, C); }
+primary(A)  ::= COLON3 CONSTANT(B). { A = new_colon3(p, B); }
 primary(A)  ::= LBRACE assoc_list(B) RBRACE. { A = new_hash(p, B); }
 primary(A)  ::= KW_return. { A = new_return(p, 0); }
 primary(A)  ::= KW_yield opt_paren_args(B). { A = new_yield(p, B); }
@@ -945,6 +965,7 @@ primary(A) ::=  KW_case opt_terms case_body(C) KW_end. {
                 }
 class_head(A) ::= KW_class
                   cpath(B) superclass(C). {
+                    // TODO: raise error if (p->in_def || p->in_single)
                     A = cons(B, C);
                     scope_nest(p, true);
                   }
