@@ -158,12 +158,12 @@
   }
   #define list5(a,b,c,d,e) list5_gen(p, (a),(b),(c),(d),(e))
 
-//  static Node*
-//  list6_gen(ParserState *p, Node *a, Node *b, Node *c, Node *d, Node *e, Node *f)
-//  {
-//    return cons(a, cons(b, cons(c, cons(d, cons(e, cons(f, 0))))));
-//  }
-//  #define list6(a,b,c,d,e,f) list6_gen(p, (a),(b),(c),(d),(e),(f))
+  static Node*
+  list6_gen(ParserState *p, Node *a, Node *b, Node *c, Node *d, Node *e, Node *f)
+  {
+    return cons(a, cons(b, cons(c, cons(d, cons(e, cons(f, 0))))));
+  }
+  #define list6(a,b,c,d,e,f) list6_gen(p, (a),(b),(c),(d),(e),(f))
 
   static Node*
   append_gen(ParserState *p, Node *a, Node *b)
@@ -450,11 +450,12 @@
   }
 
   static Node*
-  new_args(ParserState *p, Node *m, Node *opt, const char *rest, Node *m2, Node *tail)
+  new_args(ParserState *p, Node *m, Node *opt, Node *rest, Node *m2, Node *tail)
   {
-    return list5(atom(ATOM_block_parameters),
+    return list6(atom(ATOM_block_parameters),
       list2(atom(ATOM_margs), m),
       list2(atom(ATOM_optargs), opt),
+      list2(atom(ATOM_restarg), rest),
       list2(atom(ATOM_m2args), m2),
       list2(atom(ATOM_tailargs), tail)
     );
@@ -538,13 +539,13 @@
   }
 
   static Node*
-  new_colon2(ParserState *p, Node *b, Node *c)
+  new_colon2(ParserState *p, Node *b, const char *c)
   {
     return list3(atom(ATOM_colon2), b, list1(literal(c)));
   }
 
   static Node*
-  new_colon3(ParserState *p, Node *b)
+  new_colon3(ParserState *p, const char *b)
   {
     return list2(atom(ATOM_colon3), literal(b));
   }
@@ -1041,12 +1042,48 @@ A = list3(atom(ATOM_assoc_new), list2(atom(ATOM_assoc_key), new_sym(p, B)), list
 aref_args     ::= none.
 aref_args(A)  ::= args(B) trailer. { A = B; }
 
-opt_block_args_tail(A) ::= none. { A = new_args_tail(p, 0, 0, 0); }
+block_args_tail(A) ::= f_block_arg(B).
+                      {
+                        A = new_args_tail(p, 0, 0, B);
+                      }
 
-block_param(A)  ::= f_arg(B) opt_block_args_tail(C). {
+opt_block_args_tail(A) ::= COMMA block_args_tail(B).
+                      {
+                        A = new_args_tail(p, 0, 0, B);
+                      }
+opt_block_args_tail(A) ::= none.
+                      {
+                        A = new_args_tail(p, 0, 0, 0);
+                      }
+
+block_param(A) ::= f_arg(B) COMMA f_rest_arg(C) opt_block_args_tail(D).
+                    {
+                      A = new_args(p, B, 0, C, 0, D);
+                    }
+block_param(A) ::= f_arg(B) COMMA opt_block_args_tail(C).
+                    {
                       A = new_args(p, B, 0, 0, 0, C);
                     }
-
+block_param(A) ::= f_arg(B) COMMA f_rest_arg(C) COMMA f_arg(D) opt_block_args_tail(E).
+                    {
+                      A = new_args(p, B, 0, C, D, E);
+                    }
+block_param(A) ::= f_arg(B) opt_block_args_tail(C).
+                    {
+                      A = new_args(p, B, 0, 0, 0, C);
+                    }
+block_param(A) ::= f_rest_arg(B) opt_block_args_tail(C).
+                    {
+                      A = new_args(p, 0, 0, B, 0, C);
+                    }
+block_param(A) ::= f_rest_arg(B) COMMA f_arg(C) opt_block_args_tail(D).
+                    {
+                      A = new_args(p, 0, 0, B, C, D);
+                    }
+block_param(A) ::= block_args_tail(B).
+                    {
+                      A = new_args(p, 0, 0, 0, 0, B);
+                    }
 opt_block_param(A)  ::= none. {
                           local_add_blk(p, 0);
                           A = 0;
@@ -1233,20 +1270,64 @@ f_arglist(A)  ::= f_args(B) term. {
                     A = B;
                   }
 
-f_args(A) ::= f_arg(B) opt_args_tail(C). {
-                A = new_args(p, B, 0, 0, 0, C);
+f_args(A) ::= f_arg(B) COMMA f_optarg(C) COMMA f_rest_arg(D) opt_args_tail(E).
+              {
+                A = new_args(p, B, C, D, 0, E);
               }
-f_args(A) ::= f_arg(B) COMMA f_optarg(C) opt_args_tail(D). {
+f_args(A) ::= f_arg(B) COMMA f_optarg(C) COMMA f_rest_arg(D) COMMA f_arg(E) opt_args_tail(F).
+              {
+                A = new_args(p, B, C, D, E, F);
+              }
+f_args(A) ::= f_arg(B) COMMA f_optarg(C) opt_args_tail(D).
+              {
                 A = new_args(p, B, C, 0, 0, D);
               }
-f_args(A) ::= f_optarg(B) opt_args_tail(C). {
+f_args(A) ::= f_arg(B) COMMA f_optarg(C) COMMA f_arg(D) opt_args_tail(E).
+              {
+                A = new_args(p, B, C, 0, D, E);
+              }
+f_args(A) ::= f_arg(B) COMMA f_rest_arg(C) opt_args_tail(D).
+              {
+                A = new_args(p, B, 0, C, 0, D);
+              }
+f_args(A) ::= f_arg(B) COMMA f_rest_arg(C) COMMA f_arg(D) opt_args_tail(E).
+              {
+                A = new_args(p, B, 0, C, D, E);
+              }
+f_args(A) ::= f_arg(B) opt_args_tail(C).
+              {
+                A = new_args(p, B, 0, 0, 0, C);
+              }
+f_args(A) ::= f_optarg(B) COMMA f_rest_arg(C) opt_args_tail(D).
+              {
+                A = new_args(p, 0, B, C, 0, D);
+              }
+f_args(A) ::= f_optarg(B) COMMA f_rest_arg(C) COMMA f_arg(D) opt_args_tail(E).
+              {
+                A = new_args(p, 0, B, C, D, E);
+              }
+f_args(A) ::= f_optarg(B) opt_args_tail(C).
+              {
                 A = new_args(p, 0, B, 0, 0, C);
               }
-f_args(A) ::= args_tail(B). {
+f_args(A) ::= f_optarg(B) COMMA f_arg(C) opt_args_tail(D).
+              {
+                A = new_args(p, 0, B, 0, C, D);
+              }
+f_args(A) ::= f_rest_arg(B) opt_args_tail(C).
+              {
+                A = new_args(p, 0, 0, B, 0, C);
+              }
+f_args(A) ::= f_rest_arg(B) COMMA f_arg(C) opt_args_tail(D).
+              {
+                A = new_args(p, 0, 0, B, C, D);
+              }
+f_args(A) ::= args_tail(B).
+              {
                 A = new_args(p, 0, 0, 0, 0, B);
               }
 f_args(A) ::= . {
-                 local_add_f(p, "&");
+                local_add_f(p, "&");
                 A = new_args(p, 0, 0, 0, 0, 0);
               }
 
@@ -1265,6 +1346,17 @@ f_optarg(A) ::= f_opt(B). {
 f_optarg(A) ::= f_optarg(B) COMMA f_opt(C). {
                   A = list3(atom(ATOM_args_add), B, C);
                 }
+
+restarg_mark ::= STAR.
+
+f_rest_arg(A) ::= restarg_mark IDENTIFIER(B). {
+  local_add_f(p, B);
+  A = literal(B);
+}
+f_rest_arg(A) ::= restarg_mark. {
+  local_add_f(p, "*");
+  A = literal("*");
+}
 
 args_tail(A) ::= f_block_arg(B). {
                 A = new_args_tail(p, 0, 0, B);

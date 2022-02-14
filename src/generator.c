@@ -1062,14 +1062,21 @@ uint32_t setup_parameters(Scope *scope, Node *node)
     nargs = gen_values(scope, node->cons.cdr->cons.cdr->cons.car);
     bbb += (uint32_t)nargs << 13;
   }
-  /* TODO: rest, tail, etc. */
-  Node *tailargs = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
-  Node *args_tail = tailargs->cons.cdr->cons.car;
-  if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
-  { /* block */
-    if (args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car->value.name)
-      bbb += 1;
+  { /* rest arg */
+    Node *restarg = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
+    if (restarg->cons.cdr->cons.car) bbb |= 0b1000000000000;
   }
+  { /* m2args */
+    nargs = gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
+    bbb += (uint32_t)nargs << 7;
+  }
+  { /* tailargs */
+    Node *tailargs = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
+    Node *args_tail = tailargs->cons.cdr->cons.car;
+    if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
+    if (args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car->value.name) bbb += 1;
+  }
+  /* TODO: kargs */
   return bbb;
 }
 
