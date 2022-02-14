@@ -961,6 +961,7 @@ retry:
 //        case KW_undef:
           self->p->state = EXPR_FNAME;
           break;
+//        case KW_super:
         case KW_end:
         case KW_redo:
         default:

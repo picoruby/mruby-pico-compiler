@@ -1255,16 +1255,49 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
   }
 }
 
+/*
+ * OP_BLKPUSH B bb
+ * OP_ARGARY  B bb
+ * bb: 0000000000000000
+ *     ^^^^^ ^^^^^ ^^^^
+ *      m1    m2    lv
+ *          ^     ^
+ *          r     d
+ */
+uint16_t super_bb(Scope *scope)
+{
+  uint32_t bbb = scope->irep_parameters;
+  uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
+                (bbb>>7 & 0x3f) << 5 |                              // r m2
+                (bbb>>1 & 1) << 4;                                  // d
+                /* TODO: lv */
+  Scope_pushCode((uint8_t)(bb >> 8));
+  Scope_pushCode((uint8_t)(bb & 0xff));
+  return bb;
+}
+
+void gen_super(Scope *scope, Node *node)
+{
+  if (node) {
+    int nargs = gen_values(scope, node);
+    Scope_pushCode(OP_LOADNIL);
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(OP_SUPER);
+    scope->sp -= nargs + 1;
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(nargs);
+  } else {
+    Scope_pushCode(OP_ARGARY);
+    Scope_pushCode(scope->sp);
+    uint16_t bb = super_bb(scope);
+    Scope_pushCode(OP_SUPER);
+    Scope_pushCode(--scope->sp);
+    Scope_pushCode(127);
+  }
+}
+
 void gen_yield(Scope *scope, Node *node)
 {
-  /*
-   * OP_BLKPUSH B bb
-   * bb: 0000000000000000
-   *     ^^^^^ ^^^^^ ^^^^
-   *      m1    m2    lv
-   *          ^     ^
-   *          r     d
-   */
   int nargs = 0;
   if (node->cons.cdr->cons.car) {
     Scope_push(scope);
@@ -1273,13 +1306,7 @@ void gen_yield(Scope *scope, Node *node)
   }
   Scope_pushCode(OP_BLKPUSH);
   Scope_pushCode(scope->sp);
-  uint32_t bbb = scope->irep_parameters;
-  uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
-                (bbb>>7 & 0x3f) << 5 |                              // r m2
-                (bbb>>1 & 1) << 4;                                  // d
-                /* TODO: lv */
-  Scope_pushCode((uint8_t)(bb >> 8));
-  Scope_pushCode((uint8_t)(bb & 0xff));
+  uint16_t bb = super_bb(scope);
   Scope_pushCode(OP_SEND);
   Scope_pushCode(scope->sp);
   Scope_pushCode(Scope_newSym(scope, "call"));
@@ -1525,6 +1552,12 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_colon3:
       gen_colon3(scope, tree->cons.cdr);
+      break;
+    case ATOM_super:
+      gen_super(scope, tree);
+      break;
+    case ATOM_zsuper:
+      gen_super(scope, 0);
       break;
     default:
       // FIXME: `Unkown OP code: 2e`

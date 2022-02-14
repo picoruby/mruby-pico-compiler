@@ -220,6 +220,18 @@
     );
   }
 
+  static Node*
+  new_super(ParserState *p, Node *node)
+  {
+    list2(atom(ATOM_super), node);
+  }
+
+  static Node*
+  new_zsuper(ParserState *p)
+  {
+    list2(atom(ATOM_zsuper), 0);
+  }
+
   /* (:begin prog...) */
   static Node*
   new_begin(ParserState *p, Node *body)
@@ -792,6 +804,10 @@ command(A) ::= operation(B) command_args(C). [LOWEST] { A = new_fcall(p, B, C); 
 command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). {
                 A = new_call(p, B, D, E, C);
               }
+command(A) ::= KW_super command_args(B).
+              {
+                A = new_super(p, B);
+              }
 command(A) ::= KW_yield command_args(B). { A = new_yield(p, B); }
 command(A) ::= KW_return call_args(B). { A = new_return(p, ret_args(p, B)); }
 command(A) ::= KW_break call_args(B). { A = new_break(p, ret_args(p, B)); }
@@ -799,11 +815,18 @@ command(A) ::= KW_next call_args(B). { A = new_next(p, ret_args(p, B)); }
 
 command_args ::= call_args.
 
-call_args(A) ::= command(B). {
-  A = list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), B);
-}
-call_args(A) ::= args(B) opt_block_arg(C). { A = append(B, C); }
-call_args(A) ::= block_arg(B). { A = list2(atom(ATOM_args_add), B); }
+call_args(A) ::= command(B).
+                {
+                  A = list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), B);
+                }
+call_args(A) ::= args(B) opt_block_arg(C).
+                {
+                  A = append(B, C);
+                }
+call_args(A) ::= block_arg(B).
+                {
+                  A = list2(atom(ATOM_args_add), B);
+                }
 
 block_arg(A) ::= AMPER arg(B). { A = new_block_arg(p, B); }
 
@@ -1125,15 +1148,23 @@ block_call(A) ::= command(B) do_block(C). {
                     A = B;
                   }
 
-method_call(A)  ::=  operation(B) paren_args(C). {
-                       A = new_fcall(p, B, C);
-                     }
-method_call(A)  ::=  primary_value(B) call_op(C) operation2(D) opt_paren_args(E). {
-                       A = new_call(p, B, D, E, C);
-                     }
-method_call(A)  ::=  primary_value(B) LBRACKET opt_call_args(C) RBRACKET. {
-                       A = new_call(p, B, STRING_ARY, C, '.');
-                     }
+method_call(A)  ::= operation(B) paren_args(C). {
+                      A = new_fcall(p, B, C);
+                    }
+method_call(A)  ::= primary_value(B) call_op(C) operation2(D) opt_paren_args(E). {
+                      A = new_call(p, B, D, E, C);
+                    }
+method_call(A)  ::= KW_super paren_args(B).
+                    {
+                      A = new_super(p, B);
+                    }
+method_call(A)  ::= KW_super.
+                    {
+                      A = new_zsuper(p);
+                    }
+method_call(A)  ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET. {
+                      A = new_call(p, B, STRING_ARY, C, '.');
+                    }
 
 scope_nest_brace ::= LBRACE_BLOCK_PRIMARY. { scope_nest(p, false); }
 scope_nest_KW_do ::= KW_do. { scope_nest(p, false); }

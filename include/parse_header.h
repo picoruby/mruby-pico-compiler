@@ -86,6 +86,8 @@ typedef enum atom_type {
   ATOM_colon2,
   ATOM_colon3,
   ATOM_splat,
+  ATOM_super,
+  ATOM_zsuper,
 } AtomType;
 
 typedef enum {
