@@ -387,6 +387,14 @@
   {
     Node *n;
     switch (Node_atomType(a)) {
+    case ATOM_super:
+    case ATOM_zsuper:
+      if (!a->cons.cdr->cons.car) {
+        a->cons.cdr->cons.car = new_first_arg(p, b);
+      } else {
+        a->cons.cdr->cons.car = list3(atom(ATOM_args_add), a->cons.cdr->cons.car, b);
+      }
+      break;
     case ATOM_call:
     case ATOM_fcall:
       /* TODO: Ambiguous node structure should be tidied up */
