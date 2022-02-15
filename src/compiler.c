@@ -92,7 +92,7 @@ bool Compiler_compile(ParserState *p, StreamInterface *si)
 #endif
   Type prevType = 0;
   while( Tokenizer_hasMoreTokens(tokenizer) ) {
-    if (Tokenizer_advance(tokenizer, false) > 0) {
+    if (Tokenizer_advance(tokenizer, p, false) > 0) {
       p->error_count++;
       break;
     }

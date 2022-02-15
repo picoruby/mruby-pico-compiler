@@ -13,9 +13,9 @@
 #include <my_regex.h>
 
 #include <token_data.h>
-#define IS_ARG() (self->p->state == EXPR_ARG || self->p->state == EXPR_CMDARG)
-#define IS_END() (self->p->state == EXPR_END || self->p->state == EXPR_ENDARG || self->p->state == EXPR_ENDFN)
-#define IS_BEG() (self->p->state & EXPR_BEG || self->p->state == EXPR_MID || self->p->state == EXPR_VALUE || self->p->state == EXPR_CLASS)
+#define IS_ARG() (p->state == EXPR_ARG || p->state == EXPR_CMDARG)
+#define IS_END() (p->state == EXPR_END || p->state == EXPR_ENDARG || p->state == EXPR_ENDFN)
+#define IS_BEG() (p->state & EXPR_BEG || p->state == EXPR_MID || p->state == EXPR_VALUE || p->state == EXPR_CLASS)
 
 #define IS_NUM(n) ('0' <= self->line[self->pos+(n)] && self->line[self->pos+(n)] <= '9')
 
@@ -68,37 +68,33 @@ static bool tokenizer_is_comma(int letter)
   return false;
 }
 
-static void tokenizer_paren_stack_pop(Tokenizer* const self)
+static void paren_stack_pop(ParserState *p)
 {
-  self->paren_stack_num--;
-  DEBUGP("Paren popped stack_num: %d", self->paren_stack_num);
+  p->paren_stack_num--;
 }
 
-static void tokenizer_paren_stack_add(Tokenizer* const self, Paren paren)
+static void paren_stack_add(ParserState *p, Paren paren)
 {
-  self->paren_stack_num++;
-  self->paren_stack[self->paren_stack_num] = paren;
-  DEBUGP("Paren added stack_num: %d, `%d`", self->paren_stack_num, paren);
+  p->paren_stack_num++;
+  p->paren_stack[p->paren_stack_num] = paren;
 }
 
 Tokenizer* const Tokenizer_new(ParserState *p, StreamInterface *si)
 {
   Tokenizer *self = (Tokenizer *)picorbc_alloc(sizeof(Tokenizer));
-  self->p = p;
   { /* class vars in mmrbc.gem */
     self->currentToken = Token_new();
-    self->paren_stack_num = -1;
     self->line = (char *)picorbc_alloc(sizeof(char) * (MAX_LINE_LENGTH));
     self->line[0] = '\0';
     self->line_num = 0;
     self->pos = 0;
   }
-  tokenizer_paren_stack_add(self, PAREN_NONE);
+  paren_stack_add(p, PAREN_NONE);
   { /* instance vars in mmrbc.gem */
     self->si = si;
     self->mode = MODE_NONE;
     self->modeTerminater = '\0';
-    self->p->state = EXPR_BEG;
+    p->state = EXPR_BEG;
     p->cmd_start = true;
   }
   return self;
@@ -161,10 +157,10 @@ void tokenizer_pushToken(Tokenizer *self, int line_num, int pos, Type type, char
     c[0] = '\xF5'; \
   } while (0)
 
-int Tokenizer_advance(Tokenizer* const self, bool recursive)
+int Tokenizer_advance(Tokenizer* const self, ParserState *p, bool recursive)
 {
   DEBUGP("Aadvance. mode: `%d`", self->mode);
-  ParserState *p = self->p; /* to use macro in parse_header.h */
+//  ParserState *p = self->p; /* to use macro in parse_header.h */
   Token_GC(self->currentToken->prev);
   Token *lazyToken = Token_new();
   char value[MAX_TOKEN_LENGTH];
@@ -208,7 +204,7 @@ retry:
         *(lazyToken->value) = self->modeTerminater;
         *(lazyToken->value + 1) = '\0';
         lazyToken->state = EXPR_END;
-        self->p->state = EXPR_END;
+        p->state = EXPR_END;
         self->pos++;
         self->mode = MODE_NONE;
         break;
@@ -262,7 +258,7 @@ retry:
         *(lazyToken->value) = self->modeTerminater;
         *(lazyToken->value + 1) = '\0';;
         lazyToken->state = EXPR_END;
-        self->p->state = EXPR_END;
+        p->state = EXPR_END;
         self->pos++;
         self->mode = MODE_NONE;
         break;
@@ -283,25 +279,25 @@ retry:
           (char *)"#{",
           EXPR_BEG);
         self->pos += 2;
-        tokenizer_paren_stack_add(self, PAREN_BRACE);
+        paren_stack_add(p, PAREN_BRACE);
         /**
          * Reserve some properties in order to revert them
          * after recursive calling
          */
         {
           Mode reserveMode = self->mode;
-          State reserveState = self->p->state;
+          State reserveState = p->state;
           char reserveModeTerminater = self->modeTerminater;
           bool reserveCmd_start = p->cmd_start;
           self->mode = MODE_NONE;
-          self->p->state = EXPR_BEG;
+          p->state = EXPR_BEG;
           self->modeTerminater = '\0';
           p->cmd_start = true;
           while (Tokenizer_hasMoreTokens(self)) { /* recursive */
-            if (Tokenizer_advance(self, false) == 1) break;
+            if (Tokenizer_advance(self, p, false) == 1) break;
           }
           self->mode = reserveMode;
-          self->p->state = reserveState;
+          p->state = reserveState;
           self->modeTerminater = reserveModeTerminater;
           p->cmd_start = reserveCmd_start;
         }
@@ -377,7 +373,7 @@ retry:
         *(lazyToken->value) = self->modeTerminater;
         *(lazyToken->value + 1) = '\0';
         lazyToken->state = EXPR_END;
-        self->p->state = EXPR_END;
+        p->state = EXPR_END;
         self->pos++;
         self->mode = MODE_NONE;
         break;
@@ -405,42 +401,42 @@ retry:
     value[3] = 'n';
     value[4] = '\0';
     type = NL;
-  } else if (self->p->state != EXPR_DOT && self->p->state != EXPR_FNAME && tokenizer_is_operator(&(self->line[self->pos]), 3)) {
+  } else if (p->state != EXPR_DOT && p->state != EXPR_FNAME && tokenizer_is_operator(&(self->line[self->pos]), 3)) {
     value[0] = self->line[self->pos];
     value[1] = self->line[self->pos + 1];
     value[2] = self->line[self->pos + 2];
     value[3] = '\0';
     if (strcmp(value, "===") == 0) {
       type = EQQ;
-      self->p->state = EXPR_BEG;
+      p->state = EXPR_BEG;
     } else if (strcmp(value, "<=>") == 0) {
       type = CMP;
-      self->p->state = EXPR_BEG;
+      p->state = EXPR_BEG;
     } else if (value[2] == '=') {
       type = OP_ASGN;
-      self->p->state = EXPR_BEG;
+      p->state = EXPR_BEG;
     } else if (value[2] == '.') {
       if (IS_BEG()) {
         type = BDOT3;
       } else {
         type = DOT3;
       }
-      self->p->state = EXPR_BEG;
+      p->state = EXPR_BEG;
     }
-  } else if (self->p->state != EXPR_DOT && self->p->state != EXPR_FNAME && tokenizer_is_operator(&(self->line[self->pos]), 2)) {
+  } else if (p->state != EXPR_DOT && p->state != EXPR_FNAME && tokenizer_is_operator(&(self->line[self->pos]), 2)) {
     value[0] = self->line[self->pos];
     value[1] = self->line[self->pos + 1];
     value[2] = '\0';
     switch (value[0]) {
       case '=':
         switch (value[1]) {
-          case '=': type = EQ; self->p->state = EXPR_BEG; break;
-          case '>': type = ASSOC; self->p->state = EXPR_BEG; break;
+          case '=': type = EQ; p->state = EXPR_BEG; break;
+          case '>': type = ASSOC; p->state = EXPR_BEG; break;
         }
         break;
       case '!':
         switch (value[1]) {
-          case '=': type = NEQ; self->p->state = EXPR_BEG; break;
+          case '=': type = NEQ; p->state = EXPR_BEG; break;
         }
         break;
       case '*':
@@ -448,23 +444,23 @@ retry:
           case '*': type = POW; break;
           case '=': type = OP_ASGN; break;
         }
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
         break;
       case '<':
         switch (value[1]) {
           case '<': type = LSHIFT; break;
           case '=': type = LEQ; break;
         }
-        if (self->p->state == EXPR_FNAME || self->p->state == EXPR_DOT) {
-          self->p->state = EXPR_ARG;
+        if (p->state == EXPR_FNAME || p->state == EXPR_DOT) {
+          p->state = EXPR_ARG;
         } else {
-          self->p->state = EXPR_BEG;
+          p->state = EXPR_BEG;
         }
         break;
       case '>':
         switch (value[1]) {
           case '>': type = RSHIFT; break;
-          case '=': type = GEQ; self->p->state = EXPR_ARG; break;
+          case '=': type = GEQ; p->state = EXPR_ARG; break;
         }
         break;
       case '+':
@@ -473,7 +469,7 @@ retry:
       case '^':
       case '%':
         type = OP_ASGN;
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
         break;
       case '&':
         if (value[1] == '&') {
@@ -481,7 +477,7 @@ retry:
         } else {
           type = OP_ASGN;
         }
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
         break;
       case '|':
         if (value[1] == '|') {
@@ -489,7 +485,7 @@ retry:
         } else {
           type = OP_ASGN;
         }
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
         break;
       case '.':
         if (IS_BEG()) {
@@ -497,14 +493,14 @@ retry:
         } else {
           type = DOT2;
         }
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
         break;
       case ':':
         if (IS_BEG() || p->state == EXPR_CLASS) { // || IS_SPCARG(-1)) {
-          self->p->state = EXPR_BEG;
+          p->state = EXPR_BEG;
           type = COLON3;
         } else {
-          self->p->state = EXPR_COLON2;
+          p->state = EXPR_COLON2;
           type = COLON2;
         }
         break;
@@ -515,11 +511,11 @@ retry:
   } else if (Regex_match3(&(self->line[self->pos]), "^(@\\w+)", regexResult)) {
     strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
     type = IVAR;
-    self->p->state = EXPR_END;
+    p->state = EXPR_END;
   } else if (Regex_match3(&(self->line[self->pos]), "^(\\$\\w+)", regexResult)) {
     strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
     type = GVAR;
-    self->p->state = EXPR_END;
+    p->state = EXPR_END;
   } else if (self->line[self->pos] == '?') {
     char c1 = self->line[self->pos + 1];
     char c2 = self->line[self->pos + 2];
@@ -527,19 +523,20 @@ retry:
         (c2 == ' ' || c2 == '\n' || c2 == '\r' || c2 == '\t' || c2 == ';' || c2 == '\0') ) {
       value[0] = c1;
       type = STRING;
-      self->p->state = EXPR_END;
+      p->state = EXPR_END;
       self->pos++;
     } else {
       value[0] = '?';
       type = QUESTION;
-      self->p->state = EXPR_VALUE;
+      p->state = EXPR_VALUE;
     }
     value[1] = '\0';
   } else if (self->line[self->pos] == '-' && self->line[self->pos + 1] == '>') {
     value[0] = '-';
     value[1] = '>';
     value[2] = '\0';
-    type = TLAMBDA;
+    p->state = EXPR_ENDFN;
+    type = LAMBDA;
   } else {
     if (self->line[self->pos] == '\\') {
       // ignore
@@ -550,13 +547,13 @@ retry:
       if (Regex_match2(&(self->line[self->pos]), "^:[_A-Za-z0-9'\"]")) {
         type = SYMBEG;
         if (self->line[self->pos + 1] == '\'' || self->line[self->pos + 1] == '"') {
-          self->p->state = EXPR_CMDARG;
+          p->state = EXPR_CMDARG;
         } else {
-          self->p->state = EXPR_FNAME;
+          p->state = EXPR_FNAME;
         }
       } else {
         type = COLON;
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
       }
     } else if (self->line[self->pos] == '#') {
       strsafecpy(value, &(self->line[self->pos]), MAX_TOKEN_LENGTH);
@@ -569,8 +566,8 @@ retry:
     } else if (tokenizer_is_semicolon(self->line[self->pos])) {
       value[0] = self->line[self->pos];
       type = SEMICOLON;
-      self->p->state = EXPR_BEG;
-    } else if (self->p->state == EXPR_FNAME || self->p->state == EXPR_DOT) {
+      p->state = EXPR_BEG;
+    } else if (p->state == EXPR_FNAME || p->state == EXPR_DOT) {
       /* TODO: singleton method */
       if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
@@ -612,7 +609,7 @@ retry:
         }
       }
       type = IDENTIFIER;
-      self->p->state = EXPR_ENDFN;
+      p->state = EXPR_ENDFN;
     } else if (tokenizer_is_paren(self->line[self->pos])) {
       value[0] = self->line[self->pos];
       value[1] = '\0';
@@ -637,13 +634,13 @@ retry:
           } else {
             type = LPAREN_EXPR;
           }
-          self->p->state = EXPR_BEG;
-          tokenizer_paren_stack_add(self, PAREN_PAREN);
+          p->state = EXPR_BEG;
+          paren_stack_add(p, PAREN_PAREN);
           break;
         case ')':
           type = RPAREN;
-          self->p->state = EXPR_ENDFN;
-          tokenizer_paren_stack_pop(self);
+          p->state = EXPR_ENDFN;
+          paren_stack_pop(p);
           break;
         case '[':
           if ( IS_BEG() || (IS_ARG() && self->line[self->pos - 1] == ' ') ) {
@@ -651,30 +648,30 @@ retry:
           } else {
             type = LBRACKET;
           }
-          self->p->state = EXPR_BEG|EXPR_LABEL;
+          p->state = EXPR_BEG|EXPR_LABEL;
           break;
         case ']':
           type = RBRACKET;
-          self->p->state = EXPR_END;
+          p->state = EXPR_END;
           break;
         case '{':
-          if (IS_ARG() || self->p->state == EXPR_END || self->p->state == EXPR_ENDFN) {
+          if (IS_ARG() || p->state == EXPR_END || p->state == EXPR_ENDFN) {
             type = LBRACE_BLOCK_PRIMARY; /* block (primary) */
-          } else if (self->p->state == EXPR_ENDARG) {
+          } else if (p->state == EXPR_ENDARG) {
             type = LBRACE_ARG;  /* block (expr) */
           } else {
             type = LBRACE;
           }
-          self->p->state = EXPR_BEG;
+          p->state = EXPR_BEG;
           break;
         case '}':
-          if (self->paren_stack[self->paren_stack_num] == PAREN_BRACE) {
-            tokenizer_paren_stack_pop(self);
+          if (p->paren_stack[p->paren_stack_num] == PAREN_BRACE) {
+            paren_stack_pop(p);
             Token_free(lazyToken);
             return 1;
           }
           type = RBRACE;
-          self->p->state = EXPR_END;
+          p->state = EXPR_END;
           break;
         default:
           ERRORP("unknown paren error");
@@ -771,7 +768,7 @@ retry:
                 value[1] = '.';
                 value[2] = '\0';
                 type = ANDDOT;
-                self->p->state = EXPR_DOT;
+                p->state = EXPR_DOT;
               } else if (IS_BEG()) {
                 type = AMPER;
               } else {
@@ -788,14 +785,14 @@ retry:
               type = ON_OP;
           }
         }
-        self->p->state = EXPR_BEG;
+        p->state = EXPR_BEG;
       }
     } else if (tokenizer_is_comma(self->line[self->pos])) {
       value[0] = self->line[self->pos];
       type = COMMA;
-      self->p->state = EXPR_BEG|EXPR_LABEL;
+      p->state = EXPR_BEG|EXPR_LABEL;
     } else if (IS_NUM(0)) {
-      self->p->state = EXPR_END;
+      p->state = EXPR_END;
       if (Regex_match3(&(self->line[self->pos]), "^(0[xX][0-9a-fA-F][0-9a-fA-F_]*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = INTEGER;
@@ -839,13 +836,13 @@ retry:
       value[0] = '.';
       value[1] = '\0';
       type = PERIOD;
-      self->p->state = EXPR_DOT;
+      p->state = EXPR_DOT;
     } else if (Regex_match2(&(self->line[self->pos]), "^\\w")) {
       if (Regex_match3(&(self->line[self->pos]), "^([A-Z][A-Za-z0-9_]*::)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         value[strlen(value) - 2] = '\0';
         type = CONSTANT;
-        self->p->state = EXPR_CMDARG;
+        p->state = EXPR_CMDARG;
       } else if (Regex_match3(&(self->line[self->pos]), "^([A-Za-z0-9_?!]+:)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         value[strlen(value) - 1] = '\0';
@@ -857,7 +854,7 @@ retry:
       } else if (Regex_match3(&(self->line[self->pos]), "^([A-Z]\\w*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = CONSTANT;
-        self->p->state = EXPR_CMDARG;
+        p->state = EXPR_CMDARG;
       } else if (Regex_match3(&(self->line[self->pos]), "^(\\w+[!?]?)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = IDENTIFIER;
@@ -889,7 +886,7 @@ retry:
     self->pos += strlen(value);
   }
   if (type == NL) {
-    switch ((int)self->p->state) {
+    switch ((int)p->state) {
       /*     ^^^
        * Casting to int can suprress `Warning: case not evaluated in enumerated type`
        */
@@ -902,7 +899,7 @@ retry:
       default:
         break;
     }
-    self->p->state = EXPR_BEG;
+    p->state = EXPR_BEG;
   }
   if (type != ON_NONE) {
     /* FIXME from here */
@@ -913,33 +910,33 @@ retry:
       switch (type) {
         case KW_class:
         case KW_module:
-          if (self->p->state == EXPR_BEG) {
-            self->p->state = EXPR_CLASS;
+          if (p->state == EXPR_BEG) {
+            p->state = EXPR_CLASS;
           } else {
             type = IDENTIFIER;
-            self->p->state = EXPR_ARG;
+            p->state = EXPR_ARG;
           }
           break;
         case KW_if:
-          if (self->p->state != EXPR_BEG && self->p->state != EXPR_VALUE)
+          if (p->state != EXPR_BEG && p->state != EXPR_VALUE)
             type = KW_modifier_if;
-          self->p->state = EXPR_VALUE;
+          p->state = EXPR_VALUE;
           break;
         case KW_unless:
-          if (self->p->state != EXPR_BEG && self->p->state != EXPR_VALUE)
+          if (p->state != EXPR_BEG && p->state != EXPR_VALUE)
             type = KW_modifier_unless;
-          self->p->state = EXPR_VALUE;
+          p->state = EXPR_VALUE;
           break;
         case KW_while:
-          if (self->p->state != EXPR_BEG && self->p->state != EXPR_VALUE)
+          if (p->state != EXPR_BEG && p->state != EXPR_VALUE)
             type = KW_modifier_while;
-          self->p->state = EXPR_VALUE;
+          p->state = EXPR_VALUE;
           break;
         case KW_do:
           if (COND_P()) {
             type = KW_do_cond;
-          } else if ((CMDARG_P() && self->p->state != EXPR_CMDARG)
-                     || self->p->state == EXPR_ENDARG || self->p->state == EXPR_BEG){
+          } else if ((CMDARG_P() && p->state != EXPR_CMDARG)
+                     || p->state == EXPR_ENDARG || p->state == EXPR_BEG){
             type = KW_do_block;
           }
         case KW_elsif:
@@ -948,47 +945,47 @@ retry:
         case KW_or:
         case KW_case:
         case KW_when:
-          self->p->state = EXPR_BEG;
+          p->state = EXPR_BEG;
           break;
         case KW_return:
         case KW_break:
         case KW_next:
 //        case KW_rescue:
-          self->p->state = EXPR_MID;
+          p->state = EXPR_MID;
           break;
         case KW_def:
         case KW_alias:
 //        case KW_undef:
-          self->p->state = EXPR_FNAME;
+          p->state = EXPR_FNAME;
           break;
 //        case KW_super:
         case KW_end:
         case KW_redo:
         default:
-          self->p->state = EXPR_END;
+          p->state = EXPR_END;
       }
     } else if (type == IDENTIFIER) {
-      switch (self->p->state) {
+      switch (p->state) {
         case EXPR_CLASS:
-          self->p->state = EXPR_ARG;
+          p->state = EXPR_ARG;
           break;
         case EXPR_FNAME:
-          self->p->state = EXPR_ENDFN;
+          p->state = EXPR_ENDFN;
           break;
         default:
-          if (IS_BEG() || self->p->state == EXPR_DOT || IS_ARG()) {
+          if (IS_BEG() || p->state == EXPR_DOT || IS_ARG()) {
             if (cmd_state) {
-              self->p->state = EXPR_CMDARG;
+              p->state = EXPR_CMDARG;
             }
             else {
-              self->p->state = EXPR_ARG;
+              p->state = EXPR_ARG;
             }
           }
-          else if (self->p->state == EXPR_FNAME) {
-            self->p->state = EXPR_ENDFN;
+          else if (p->state == EXPR_FNAME) {
+            p->state = EXPR_ENDFN;
           }
           else {
-            self->p->state = EXPR_END;
+            p->state = EXPR_END;
           }
           break;
       }
@@ -1000,7 +997,7 @@ retry:
         /* FIXME: ^^^^^^^^^^^^^ incorrect if value contains escape sequences */
       type,
       value,
-      self->p->state);
+      p->state);
   }
   if (lazyToken->value != NULL) {
     tokenizer_pushToken(self,

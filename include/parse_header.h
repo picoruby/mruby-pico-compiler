@@ -88,6 +88,7 @@ typedef enum atom_type {
   ATOM_splat,
   ATOM_super,
   ATOM_zsuper,
+  ATOM_lambda,
 } AtomType;
 
 typedef enum {
@@ -148,6 +149,16 @@ typedef struct specail_string_pool {
   char ary[3];  /* "[]" */
 } SpecialStringPool;;
 
+typedef enum paren
+{
+  PAREN_NONE,
+  PAREN_PAREN,
+  PAREN_BRACE,
+} Paren;
+
+/* margin size to malloc tokenizer */
+#define PAREN_STACK_SIZE 40
+
 typedef struct parser_state {
   Scope *scope;
   NodeBox *root_node_box;
@@ -161,6 +172,8 @@ typedef struct parser_state {
   bool cmd_start;
   State state;
   bool verbose;
+  int paren_stack_num;
+  Paren paren_stack[PAREN_STACK_SIZE];
 } ParserState;
 
 #define BITSTACK_PUSH(stack, n) ((stack) = ((stack) << 1) | ((n) & 1))

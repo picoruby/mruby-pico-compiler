@@ -15,7 +15,6 @@
   IVAR
   GVAR
   CHAR
-  TLAMBDA
   SYMBEG
   COMMENT
   LPAREN
@@ -223,13 +222,19 @@
   static Node*
   new_super(ParserState *p, Node *node)
   {
-    list2(atom(ATOM_super), node);
+    return list2(atom(ATOM_super), node);
   }
 
   static Node*
   new_zsuper(ParserState *p)
   {
-    list2(atom(ATOM_zsuper), 0);
+    return list2(atom(ATOM_zsuper), 0);
+  }
+
+  static Node*
+  new_lambda(ParserState *p, Node *a, Node *b)
+  {
+    return NULL;
   }
 
   /* (:begin prog...) */
@@ -966,6 +971,14 @@ primary(A)  ::= method_call(B) brace_block(C). {
                   call_with_block(p, B, C);
                   A = B;
                 }
+lambda_head ::= LAMBDA. {
+                  scope_nest(p, true);
+                }
+primary(A)  ::= lambda_head f_larglist(B) lambda_body(C).
+                {
+                  A = new_lambda(p, B, C);
+                  scope_unnest(p);
+                }
 primary(A)  ::= KW_if expr_value(B) then
                 compstmt(C)
                 if_tail(D)
@@ -1141,6 +1154,24 @@ bvar ::= IDENTIFIER(B). {
            local_add_f(p, B);
            //new_bv(p, B);
          }
+
+f_larglist(A) ::= LPAREN_ARG f_args(B) opt_bv_decl RPAREN.
+                  {
+                    A = B;
+                  }
+f_larglist(A) ::= f_args(B).
+                  {
+                    A = B;
+                  }
+
+lambda_body(A) ::= LAMBEG compstmt(B) RBRACE.
+                  {
+                    A = B;
+                  }
+lambda_body(A) ::= KW_do_lambda bodystmt(B) KW_end.
+                  {
+                    A = B;
+                  }
 
 scope_nest_KW_do_block ::= KW_do_block. { scope_nest(p, false); }
 do_block(A) ::= scope_nest_KW_do_block
@@ -1533,6 +1564,7 @@ none(A) ::= . { A = 0; }
     p->error_count = 0;
     p->cond_stack = 0;
     p->cmdarg_stack = 0;
+    p->paren_stack_num = -1;
     return p;
   }
 
