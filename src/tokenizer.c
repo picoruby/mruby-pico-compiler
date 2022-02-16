@@ -635,12 +635,16 @@ retry:
             type = LPAREN_EXPR;
           }
           p->state = EXPR_BEG;
+          COND_PUSH(0);
+          CMDARG_PUSH(0);
           paren_stack_add(p, PAREN_PAREN);
           break;
         case ')':
           type = RPAREN;
           p->state = EXPR_ENDFN;
           paren_stack_pop(p);
+          COND_LEXPOP();
+          CMDARG_LEXPOP();
           break;
         case '[':
           if ( IS_BEG() || (IS_ARG() && self->line[self->pos - 1] == ' ') ) {
@@ -653,15 +657,23 @@ retry:
         case ']':
           type = RBRACKET;
           p->state = EXPR_END;
+          COND_LEXPOP();
+          CMDARG_LEXPOP();
           break;
         case '{':
-          if (IS_ARG() || p->state == EXPR_END || p->state == EXPR_ENDFN) {
+          if (p->lpar_beg && p->lpar_beg == p->paren_stack_num) {
+            p->lpar_beg = 0;
+            p->paren_stack_num--;
+            type = LAMBEG;
+          } else if (IS_ARG() || p->state == EXPR_END || p->state == EXPR_ENDFN) {
             type = LBRACE_BLOCK_PRIMARY; /* block (primary) */
           } else if (p->state == EXPR_ENDARG) {
             type = LBRACE_ARG;  /* block (expr) */
           } else {
-            type = LBRACE;
+            type = LBRACE; /* hash */
           }
+          COND_PUSH(0);
+          CMDARG_PUSH(0);
           p->state = EXPR_BEG;
           break;
         case '}':
@@ -672,6 +684,8 @@ retry:
           }
           type = RBRACE;
           p->state = EXPR_END;
+          COND_LEXPOP();
+          CMDARG_LEXPOP();
           break;
         default:
           ERRORP("unknown paren error");
@@ -972,6 +986,8 @@ retry:
         case EXPR_FNAME:
           p->state = EXPR_ENDFN;
           break;
+        case EXPR_ENDFN:
+          break;
         default:
           if (IS_BEG() || p->state == EXPR_DOT || IS_ARG()) {
             if (cmd_state) {
@@ -980,11 +996,9 @@ retry:
             else {
               p->state = EXPR_ARG;
             }
-          }
-          else if (p->state == EXPR_FNAME) {
+          } else if (p->state == EXPR_FNAME) {
             p->state = EXPR_ENDFN;
-          }
-          else {
+          } else {
             p->state = EXPR_END;
           }
           break;

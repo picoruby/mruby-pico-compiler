@@ -1115,6 +1115,7 @@ void gen_irep(Scope *scope, Node *node)
       Scope_pushCode(OP_JMP);
       JmpLabel *label = Scope_reserveJmpLabel(scope);
       codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car);
+      scope->sp -= nopt;
       Scope_backpatchJmpLabel(label, scope->vm_code_size);
     }
   }
@@ -1134,6 +1135,16 @@ void gen_irep(Scope *scope, Node *node)
   }
   Scope_finish(scope);
   scope = scope_unnest(scope);
+}
+
+void gen_lambda(Scope *scope, Node *node)
+{
+  Scope_pushCode(OP_LAMBDA);
+  Scope_pushCode(scope->sp);
+  Scope_push(scope);
+  Scope_pushCode(scope->next_lower_number);
+  gen_irep(scope, node->cons.cdr);
+  scope->sp--;
 }
 
 void gen_block(Scope *scope, Node *node)
@@ -1562,6 +1573,9 @@ void codegen(Scope *scope, Node *tree)
     case ATOM_super:
     case ATOM_zsuper:
       gen_super(scope, tree);
+      break;
+    case ATOM_lambda:
+      gen_lambda(scope, tree);
       break;
     default:
       // FIXME: `Unkown OP code: 2e`

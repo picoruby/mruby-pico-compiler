@@ -166,7 +166,7 @@ typedef struct parser_state {
   uint8_t node_box_size;
   StringPool *current_string_pool;
   SpecialStringPool special_string_pool;
-  int error_count;
+  unsigned int error_count;
   unsigned int cond_stack;
   unsigned int cmdarg_stack;
   bool cmd_start;
@@ -174,6 +174,7 @@ typedef struct parser_state {
   bool verbose;
   int paren_stack_num;
   Paren paren_stack[PAREN_STACK_SIZE];
+  unsigned int lpar_beg;
 } ParserState;
 
 #define BITSTACK_PUSH(stack, n) ((stack) = ((stack) << 1) | ((n) & 1))

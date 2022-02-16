@@ -48,6 +48,8 @@
 %type operation2    { const char* }
 %type f_norm_arg    { const char* }
 %type f_block_arg   { const char* }
+%type lambda_head           { unsigned int }
+%type preserve_cmdarg_stack { unsigned int }
 
 %include {
   #include <stdlib.h>
@@ -234,7 +236,7 @@
   static Node*
   new_lambda(ParserState *p, Node *a, Node *b)
   {
-    return NULL;
+    return list3(atom(ATOM_lambda), a, b);
   }
 
   /* (:begin prog...) */
@@ -947,9 +949,16 @@ primary     ::= literal.
 primary     ::= string.
 primary     ::= var_ref.
 primary(A)  ::= KW_begin
+                preserve_cmdarg_stack(STACK)
                 bodystmt(B)
                 KW_end. {
+                  p->cmdarg_stack = STACK;
                   A = B;
+                }
+preserve_cmdarg_stack(STACK) ::= .
+                {
+                  STACK = p->cmdarg_stack;
+                  p->cmdarg_stack = 0;
                 }
 primary(A)  ::= LPAREN_ARG stmt(B) rparen. { A = B; }
 primary(A)  ::= LPAREN compstmt(B) rparen. {
@@ -971,14 +980,19 @@ primary(A)  ::= method_call(B) brace_block(C). {
                   call_with_block(p, B, C);
                   A = B;
                 }
-lambda_head ::= LAMBDA. {
-                  scope_nest(p, true);
-                }
-primary(A)  ::= lambda_head f_larglist(B) lambda_body(C).
-                {
-                  A = new_lambda(p, B, C);
-                  scope_unnest(p);
-                }
+primary(A)  ::= lambda_head(NUM) LAMBDA f_larglist(B) preserve_cmdarg_stack(STACK) lambda_body(C).
+                    {
+                      p->lpar_beg = NUM;
+                      A = new_lambda(p, B, C);
+                      scope_unnest(p);
+                      p->cmdarg_stack = STACK;
+                    }
+lambda_head(NUM) ::= .
+                    {
+                      scope_nest(p, true);
+                      NUM = p->lpar_beg;
+                      p->lpar_beg = ++p->paren_stack_num;
+                    }
 primary(A)  ::= KW_if expr_value(B) then
                 compstmt(C)
                 if_tail(D)
@@ -1093,40 +1107,68 @@ block_args_tail(A) ::= f_block_arg(B).
 
 opt_block_args_tail(A) ::= COMMA block_args_tail(B).
                       {
-                        A = new_args_tail(p, 0, 0, B);
+                        A = B;
                       }
 opt_block_args_tail(A) ::= none.
                       {
                         A = new_args_tail(p, 0, 0, 0);
                       }
 
-block_param(A) ::= f_arg(B) COMMA f_rest_arg(C) opt_block_args_tail(D).
+block_param(A) ::= f_arg(B) COMMA f_block_optarg(C) COMMA f_rest_arg(D) opt_block_args_tail(F).
                     {
-                      A = new_args(p, B, 0, C, 0, D);
+                      A = new_args(p, B, C, D, 0, F);
                     }
-block_param(A) ::= f_arg(B) COMMA opt_block_args_tail(C).
+block_param(A) ::= f_arg(B) COMMA f_block_optarg(C) COMMA f_rest_arg(D) COMMA f_arg(E) opt_block_args_tail(F).
                     {
-                      A = new_args(p, B, 0, 0, 0, C);
+                      A = new_args(p, B, C, D, E, F);
                     }
-block_param(A) ::= f_arg(B) COMMA f_rest_arg(C) COMMA f_arg(D) opt_block_args_tail(E).
+block_param(A) ::= f_arg(B) COMMA f_block_optarg(C) COMMA opt_block_args_tail(F).
                     {
-                      A = new_args(p, B, 0, C, D, E);
+                      A = new_args(p, B, C, 0, 0, F);
                     }
-block_param(A) ::= f_arg(B) opt_block_args_tail(C).
+block_param(A) ::= f_arg(B) COMMA f_block_optarg(C) COMMA f_arg(E) opt_block_args_tail(F).
                     {
-                      A = new_args(p, B, 0, 0, 0, C);
+                      A = new_args(p, B, C, 0, E, F);
                     }
-block_param(A) ::= f_rest_arg(B) opt_block_args_tail(C).
+block_param(A) ::= f_arg(B) COMMA f_rest_arg(D) opt_block_args_tail(F).
                     {
-                      A = new_args(p, 0, 0, B, 0, C);
+                      A = new_args(p, B, 0, D, 0, F);
                     }
-block_param(A) ::= f_rest_arg(B) COMMA f_arg(C) opt_block_args_tail(D).
+block_param(A) ::= f_arg(B) COMMA opt_block_args_tail(F).
                     {
-                      A = new_args(p, 0, 0, B, C, D);
+                      A = new_args(p, B, 0, 0, 0, F);
                     }
-block_param(A) ::= block_args_tail(B).
+block_param(A) ::= f_arg(B) COMMA f_rest_arg(D) COMMA f_arg(E) opt_block_args_tail(F).
                     {
-                      A = new_args(p, 0, 0, 0, 0, B);
+                      A = new_args(p, B, 0, D, E, F);
+                    }
+block_param(A) ::= f_arg(B) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, B, 0, 0, 0, F);
+                    }
+block_param(A) ::= f_block_optarg(C) COMMA f_rest_arg(D) COMMA f_arg(E) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, 0, C, D, E, F);
+                    }
+block_param(A) ::= f_block_optarg(C) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, 0, C, 0, 0, F);
+                    }
+block_param(A) ::= f_block_optarg(C) COMMA f_arg(E) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, 0, C, 0, E, F);
+                    }
+block_param(A) ::= f_rest_arg(D) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, 0, 0, D, 0, F);
+                    }
+block_param(A) ::= f_rest_arg(D) COMMA f_arg(E) opt_block_args_tail(F).
+                    {
+                      A = new_args(p, 0, 0, D, E, F);
+                    }
+block_param(A) ::= block_args_tail(F).
+                    {
+                      A = new_args(p, 0, 0, 0, 0, F);
                     }
 opt_block_param(A)  ::= none. {
                           local_add_blk(p, 0);
@@ -1155,13 +1197,26 @@ bvar ::= IDENTIFIER(B). {
            //new_bv(p, B);
          }
 
-f_larglist(A) ::= LPAREN_ARG f_args(B) opt_bv_decl RPAREN.
+f_larglist(A) ::= LPAREN_EXPR f_args(B) opt_bv_decl RPAREN.
                   {
                     A = B;
                   }
 f_larglist(A) ::= f_args(B).
                   {
                     A = B;
+                  }
+
+f_block_opt(A) ::= f_opt_asgn(B) primary_value(C).
+                  {
+                    A = push(B, C);
+                  }
+f_block_optarg(A) ::= f_block_opt(B).
+                  {
+                    A = new_first_arg(p, B);
+                  }
+f_block_optarg(A) ::= f_block_optarg(B) COMMA f_block_opt(C).
+                  {
+                    A = list3(atom(ATOM_args_add), B, C);
                   }
 
 lambda_body(A) ::= LAMBEG compstmt(B) RBRACE.
@@ -1565,6 +1620,7 @@ none(A) ::= . { A = 0; }
     p->cond_stack = 0;
     p->cmdarg_stack = 0;
     p->paren_stack_num = -1;
+    p->lpar_beg = 0;
     return p;
   }
 
