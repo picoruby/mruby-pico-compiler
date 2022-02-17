@@ -51,6 +51,8 @@
 %type lambda_head           { unsigned int }
 %type preserve_cmdarg_stack { unsigned int }
 %type push_cmdarg           { unsigned int }
+%type preserve_in_single    { unsigned int }
+%type preserve_in_def       { unsigned int }
 
 %include {
   #include <stdlib.h>
@@ -432,6 +434,12 @@
   new_class(ParserState *p, Node *c, Node *b)
   {
     return list4(atom(ATOM_class), c->cons.car, c->cons.cdr, b);
+  }
+
+  static Node*
+  new_sclass(ParserState *p, Node *c, Node *b)
+  {
+    return list3(atom(ATOM_sclass), c, b);
   }
 
   static Node*
@@ -1124,9 +1132,30 @@ class_head(A) ::= KW_class
                   }
 primary(A) ::=  class_head(B)
                 bodystmt(C)
-                KW_end. {
+                KW_end.
+                {
                   A = new_class(p, B, C);
                   scope_unnest(p);
+                }
+primary(A) ::=  KW_class LSHIFT preserve_in_def(NUM) expr(B) preserve_in_single(ND) term
+                bodystmt(C)
+                KW_end.
+                {
+                  A = new_sclass(p, B, C);
+                  scope_unnest(p);
+                  p->in_def = NUM;
+                  p->in_single = ND;
+                }
+preserve_in_def(NUM) ::= .
+                {
+                  NUM = p->in_def;
+                  p->in_def = 0;
+                }
+preserve_in_single(ND) ::= .
+                {
+                  ND = p->in_single;
+                  scope_nest(p, true);
+                  p->in_single = 0;
                 }
 module_head(A) ::= KW_module cpath(B). {
                     // TODO: raise error if (p->in_def || p->in_single)

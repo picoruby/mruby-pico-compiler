@@ -27,6 +27,15 @@ class SingletonTest < PicoRubyTest
       Array.a(:hello_hello)
     RUBY
 
+    desc "singleton Klass"
+    assert_equal(<<~RUBY, "heyheyhey")
+      class << String
+        def a(n)
+          puts "hey" * n
+        end
+      end
+      String.a(3)
+    RUBY
   end
 
 end

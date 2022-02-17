@@ -80,6 +80,7 @@ typedef enum atom_type {
   ATOM_args_tail,
   ATOM_restarg,
   ATOM_class,
+  ATOM_sclass,
   ATOM_module,
   ATOM_alias,
   ATOM_dot2,
