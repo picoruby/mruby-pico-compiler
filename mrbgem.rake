@@ -19,7 +19,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.cc.include_paths << include_dir
 
   Dir.glob("#{src_dir}/*.c").each do |src|
-    file objfile(src.pathmap "#{build_dir}/src/%n") => src do |f|
+    file objfile(src.pathmap "#{build_dir}/src/%n") => [src, "#{include_dir}/parse_header.h"] do |f|
       cc.run f.name, src
     end
   end

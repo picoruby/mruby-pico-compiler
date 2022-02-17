@@ -567,48 +567,52 @@ retry:
       value[0] = self->line[self->pos];
       type = SEMICOLON;
       p->state = EXPR_BEG;
-    } else if (p->state == EXPR_FNAME || p->state == EXPR_DOT) {
-      /* TODO: singleton method */
-      if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
+    } else if (p->state == EXPR_FNAME) {
+      if ( Regex_match3(&(self->line[self->pos]), "^([A-Z]\\w*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        type = CONSTANT;
       } else {
-        value[1] = '\0';
-        value[2] = '\0';
-        value[3] = '\0';
-        if (self->line[self->pos] == '`') {
-          value[0] = '`';
-        } else if (self->line[self->pos] == '!') {
-          value[0] = '!';
-          if (self->line[self->pos + 1] == '=') value[1] = '=';
-        } else if (self->line[self->pos] == '=') {
-          value[0] = '=';
-          if (self->line[self->pos + 1] == '=') {
-             value[1] = '=';
-            if (self->line[self->pos + 2] == '=') value[2] = '=';
-          }
-        } else if (self->line[self->pos] == '<') {
-          value[0] = '<';
-          if (self->line[self->pos + 1] == '<') {
-             value[1] = '<';
-          } else if (self->line[self->pos + 1] == '=') {
-            value[1] = '=';
-            if (self->line[self->pos + 2] == '>') value[2] = '>';
-          }
-        } else if (self->line[self->pos] == '>') {
-          value[0] = '>';
-          if (self->line[self->pos + 1] == '>') {
-            value[1] = '>';
-          } else if (self->line[self->pos + 1] == '=') {
-            value[1] = '=';
-          }
+        if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
+          strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else {
-          ERRORP("Failed to tokenize!");
-          Token_free(lazyToken);
-          self->pos += 1; /* skip one */
-          return 1;
+          value[1] = '\0';
+          value[2] = '\0';
+          value[3] = '\0';
+          if (self->line[self->pos] == '`') {
+            value[0] = '`';
+          } else if (self->line[self->pos] == '!') {
+            value[0] = '!';
+            if (self->line[self->pos + 1] == '=') value[1] = '=';
+          } else if (self->line[self->pos] == '=') {
+            value[0] = '=';
+            if (self->line[self->pos + 1] == '=') {
+              value[1] = '=';
+              if (self->line[self->pos + 2] == '=') value[2] = '=';
+            }
+          } else if (self->line[self->pos] == '<') {
+            value[0] = '<';
+            if (self->line[self->pos + 1] == '<') {
+              value[1] = '<';
+            } else if (self->line[self->pos + 1] == '=') {
+              value[1] = '=';
+              if (self->line[self->pos + 2] == '>') value[2] = '>';
+            }
+          } else if (self->line[self->pos] == '>') {
+            value[0] = '>';
+            if (self->line[self->pos + 1] == '>') {
+              value[1] = '>';
+            } else if (self->line[self->pos + 1] == '=') {
+              value[1] = '=';
+            }
+          } else {
+            ERRORP("Invalid method name!");
+            Token_free(lazyToken);
+            self->pos += 1; /* skip one */
+            return 1;
+          }
         }
+        type = IDENTIFIER;
       }
-      type = IDENTIFIER;
       p->state = EXPR_ENDFN;
     } else if (tokenizer_is_paren(self->line[self->pos])) {
       value[0] = self->line[self->pos];
@@ -653,6 +657,8 @@ retry:
             type = LBRACKET;
           }
           p->state = EXPR_BEG|EXPR_LABEL;
+          COND_PUSH(0);
+          CMDARG_PUSH(0);
           break;
         case ']':
           type = RBRACKET;

@@ -70,6 +70,7 @@ typedef enum atom_type {
   ATOM_redo,
   ATOM_block,
   ATOM_def,
+  ATOM_sdef,
   ATOM_block_parameters,
   ATOM_arg,
   ATOM_margs,
@@ -175,6 +176,8 @@ typedef struct parser_state {
   int paren_stack_num;
   Paren paren_stack[PAREN_STACK_SIZE];
   unsigned int lpar_beg;
+  int in_def;
+  int in_single;
 } ParserState;
 
 #define BITSTACK_PUSH(stack, n) ((stack) = ((stack) << 1) | ((n) & 1))
@@ -192,4 +195,9 @@ typedef struct parser_state {
 #define CMDARG_LEXPOP() BITSTACK_LEXPOP(p->cmdarg_stack)
 #define CMDARG_P()      BITSTACK_SET_P(p->cmdarg_stack)
 
+//#define sym(x) ((mrb_sym)(intptr_t)(x))
+#define nsym(x) ((Node*)(intptr_t)(x))
+#define nint(x) ((Node*)(intptr_t)(x))
+#define intn(x) ((int)(intptr_t)(x))
+//#define typen(x) ((enum node_type)(intptr_t)(x))
 #endif

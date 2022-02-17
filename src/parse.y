@@ -50,6 +50,7 @@
 %type f_block_arg   { const char* }
 %type lambda_head           { unsigned int }
 %type preserve_cmdarg_stack { unsigned int }
+%type push_cmdarg           { unsigned int }
 
 %include {
   #include <stdlib.h>
@@ -349,6 +350,12 @@
     return list1(atom(ATOM_kw_self));
   }
 
+  static Node*
+  new_nil(ParserState *p)
+  {
+    return list1(atom(ATOM_kw_nil));
+  }
+
   /* (:fcall self mid args) */
   static Node*
   new_fcall(ParserState *p, Node *b, Node *c)
@@ -449,7 +456,29 @@
      *  methodname  ???????   args      body
      */
     Node *n = d->cons.cdr->cons.cdr;
-    //p->cmdarg_stack = intn(n->cons.cdr->cons.car);
+    p->cmdarg_stack = intn(n->cons.cdr->cons.car);
+    n->cons.cdr->cons.car = a;
+    //local_resume(p, n->cons.cdr->cons.cdr->cons.car);
+    n->cons.cdr->cons.cdr->cons.car = b;
+    return d;
+  }
+
+  static Node*
+  new_sdef(ParserState *p, Node *o, const char* m, Node *a, Node *b)
+  {
+    return list6(atom(ATOM_sdef), o, literal(m), 0, a, b);
+  }
+
+  static Node*
+  defs_setup(ParserState *p, Node *d, Node *a, Node *b)
+  {
+    /*
+     * d->cons.cdr->cons.cdr->cons.cdr->cons.cdr
+     *    ^^^^^^^^  ^^^^^^^^  ^^^^^^^^  ^^^^^^^^
+     *  methodname  ???????   args      body
+     */
+    Node *n = d->cons.cdr->cons.cdr->cons.cdr;
+    p->cmdarg_stack = intn(n->cons.cdr->cons.car);
     n->cons.cdr->cons.car = a;
     //local_resume(p, n->cons.cdr->cons.cdr->cons.car);
     n->cons.cdr->cons.cdr->cons.car = b;
@@ -796,16 +825,48 @@ expr(A) ::= expr(B) KW_and expr(C). { A = new_and(p, B, C); }
 expr(A) ::= expr(B) KW_or expr(C). { A = new_or(p, B, C); }
 expr ::= arg.
 
-defn_head(A) ::= KW_def fname(B). {
-                  A = new_def(p, B, 0, 0); // nint(p->cmdarg_stack), local_switch(p)
-                  // p->cmdarg_stackl = 0;
-                  // p->in_def++;
+defn_head(A) ::= KW_def fname(C). {
+                  // , local_switch(p)
+                  A = new_def(p, C, nint(p->cmdarg_stack), 0);
+                  p->cmdarg_stack = 0;
+                  p->in_def++;
                   // nvars_block(p);
                   scope_nest(p, true);
                 }
+defs_head(A) ::= KW_def singleton(B) dot_or_colon fname(C). {
+                  // , local_switch(p)
+                  A = new_sdef(p, B, C, nint(p->cmdarg_stack), 0);
+                  p->cmdarg_stack = 0;
+                  p->in_def++;
+                  p->in_single++;
+                  // nvars_block(p);
+                  scope_nest(p, true);
 
+                }
+dot_or_colon ::= PERIOD.
+                {
+                  p->state = EXPR_ENDFN;
+                }
+dot_or_colon ::= COLON2.
+                {
+                  p->state = EXPR_ENDFN;
+                }
+singleton(A) ::= var_ref(B).
+                {
+                  if (!B) A = new_nil(p);
+                  else A = B;
+                  p->state = EXPR_FNAME;
+                }
+singleton(A) ::= LPAREN_EXPR change_state_beg expr(B) RPAREN.
+                {
+                  A = B;
+                }
+change_state_beg ::= .
+                {
+                  p->state = EXPR_BEG;
+                }
 expr_value(A) ::= expr(B). {
-                   if (!B) A = list1(atom(ATOM_kw_nil));
+                   if (!B) A = new_nil(p);
                    else A = B;
                   }
 
@@ -828,7 +889,16 @@ command(A) ::= KW_return call_args(B). { A = new_return(p, ret_args(p, B)); }
 command(A) ::= KW_break call_args(B). { A = new_break(p, ret_args(p, B)); }
 command(A) ::= KW_next call_args(B). { A = new_next(p, ret_args(p, B)); }
 
-command_args ::= call_args.
+command_args(A) ::= push_cmdarg(STACK) call_args(B).
+                {
+                  p->cmdarg_stack = STACK;
+                  A = B;
+                }
+push_cmdarg(STACK) ::= .
+                {
+                  STACK = p->cmdarg_stack;
+                  CMDARG_PUSH(1);
+                }
 
 call_args(A) ::= command(B).
                 {
@@ -877,19 +947,19 @@ arg(A) ::= arg(B) DOT2 arg(C). {
   A = new_dot2(p, B, C);
 }
 arg(A) ::= arg(B) DOT2. {
-  A = new_dot2(p, B, list1(atom(ATOM_kw_nil)));
+  A = new_dot2(p, B, new_nil(p));
 }
 arg(A) ::= BDOT2 arg(B). {
-  A = new_dot2(p, list1(atom(ATOM_kw_nil)), B);
+  A = new_dot2(p, new_nil(p), B);
 }
 arg(A) ::= arg(B) DOT3 arg(C). {
   A = new_dot3(p, B, C);
 }
 arg(A) ::= arg(B) DOT3. {
-  A = new_dot3(p, B, list1(atom(ATOM_kw_nil)));
+  A = new_dot3(p, B, new_nil(p));
 }
 arg(A) ::= BDOT3 arg(B). {
-  A = new_dot3(p, list1(atom(ATOM_kw_nil)), B);
+  A = new_dot3(p, new_nil(p), B);
 }
 arg(A) ::= arg(B) PLUS arg(C).   { A = call_bin_op(B, "+" ,C); }
 arg(A) ::= arg(B) MINUS arg(C).  { A = call_bin_op(B, "-", C); }
@@ -971,7 +1041,7 @@ primary(A)  ::= LBRACE assoc_list(B) RBRACE. { A = new_hash(p, B); }
 primary(A)  ::= KW_return. { A = new_return(p, 0); }
 primary(A)  ::= KW_yield opt_paren_args(B). { A = new_yield(p, B); }
 primary(A)  ::= KW_not LPAREN_EXPR expr(B) rparen. { A = call_uni_op(p, B, "!"); }
-primary(A)  ::= KW_not LPAREN_EXPR rparen. { A = call_uni_op(p, list1(atom(ATOM_kw_nil)), "!"); }
+primary(A)  ::= KW_not LPAREN_EXPR rparen. { A = call_uni_op(p, new_nil(p), "!"); }
 primary(A)  ::= operation(B) brace_block(C). {
                   A = new_fcall(p, B, list2(0, C));
                 }
@@ -986,6 +1056,7 @@ primary(A)  ::= lambda_head(NUM) LAMBDA f_larglist(B) preserve_cmdarg_stack(STAC
                       A = new_lambda(p, B, C);
                       scope_unnest(p);
                       p->cmdarg_stack = STACK;
+                      CMDARG_LEXPOP();
                     }
 lambda_head(NUM) ::= .
                     {
@@ -1005,15 +1076,15 @@ primary(A)  ::= KW_unless expr_value(B) then
                 KW_end. {
                   A = new_if(p, B, D, C); /* NOTE: `D, C` in inverse order */
                 }
-cond_push_while ::= KW_while. { COND_PUSH(1); }
-cond_push_until ::= KW_until. { COND_PUSH(1); }
-do_pop ::= do. { COND_POP(); }
 primary(A) ::=  cond_push_while expr_value(B) do_pop compstmt(C) KW_end. {
                   A = new_while(p, B, C);
                 }
+cond_push_while ::= KW_while. { COND_PUSH(1); }
+do_pop ::= do. { COND_POP(); }
 primary(A) ::=  cond_push_until expr_value(B) do_pop compstmt(C) KW_end. {
                   A = new_until(p, B, C);
                 }
+cond_push_until ::= KW_until. { COND_PUSH(1); }
 primary(A) ::=  KW_case expr_value(B) opt_terms
                 case_body(C)
                 KW_end. {
@@ -1047,11 +1118,20 @@ primary(A) ::=  module_head(B)
                 }
 primary(A) ::=  defn_head(B) f_arglist(C)
                   bodystmt(D)
-                KW_end. {
+                KW_end.
+                {
                   A = defn_setup(p, B, C, D);
-                  // nvars_unnest(p);
-                  // p->in_def--;
                   scope_unnest(p);
+                  p->in_def--;
+                }
+primary(A) ::=  defs_head(B) f_arglist(C)
+                  bodystmt(D)
+                KW_end.
+                {
+                  A = defs_setup(p, B, C, D);
+                  scope_unnest(p);
+                  p->in_def--;
+                  p->in_single--;
                 }
 primary(A) ::=  KW_break. {
                   A = new_break(p, 0);
@@ -1359,7 +1439,7 @@ variable(A) ::= GVAR(B).       { A = new_gvar(p, B); }
 variable(A) ::= CONSTANT(B).   { A = new_const(p, B); }
 
 var_ref(A) ::= variable(B). { A = var_reference(p, B); }
-var_ref(A) ::= KW_nil. { A = list1(atom(ATOM_kw_nil)); }
+var_ref(A) ::= KW_nil. { A = new_nil(p); }
 var_ref(A) ::= KW_self. { A = new_self(p); }
 var_ref(A) ::= KW_true. { A = list1(atom(ATOM_kw_true)); }
 var_ref(A) ::= KW_false. { A = list1(atom(ATOM_kw_false)); }
@@ -1621,6 +1701,8 @@ none(A) ::= . { A = 0; }
     p->cmdarg_stack = 0;
     p->paren_stack_num = -1;
     p->lpar_beg = 0;
+    p->in_def = 0;
+    p->in_single = 0;
     return p;
   }
 

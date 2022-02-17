@@ -1156,10 +1156,19 @@ void gen_block(Scope *scope, Node *node)
   gen_irep(scope, node->cons.cdr);
 }
 
-void gen_def(Scope *scope, Node *node)
+void gen_def(Scope *scope, Node *node, bool is_singleton)
 {
-  Scope_pushCode(OP_TCLASS);
-  Scope_pushCode(scope->sp);
+  if (is_singleton) {
+    Node *tmp_node = node->cons.cdr;
+    node->cons.cdr = NULL;
+    codegen(scope, node);
+    node = tmp_node;
+    Scope_pushCode(OP_SCLASS);
+    Scope_pushCode(scope->sp);
+  } else {
+    Scope_pushCode(OP_TCLASS);
+    Scope_pushCode(scope->sp);
+  }
   Scope_push(scope);
   Scope_pushCode(OP_METHOD);
   Scope_pushCode(scope->sp);
@@ -1549,7 +1558,10 @@ void codegen(Scope *scope, Node *tree)
       gen_splat(scope, tree->cons.cdr);
       break;
     case ATOM_def:
-      gen_def(scope, tree->cons.cdr);
+      gen_def(scope, tree->cons.cdr, false);
+      break;
+    case ATOM_sdef:
+      gen_def(scope, tree->cons.cdr, true);
       break;
     case ATOM_class:
     case ATOM_module:

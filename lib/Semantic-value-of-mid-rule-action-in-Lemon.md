@@ -131,8 +131,8 @@ This causes inconsistency of `p->paren_nest` status at the point that our tokeni
 In this scenario, invoking the action of `lambda_head` is delayed until inputting a token `{`.
 This is neither what you expect because preserving `NUM = p->lpar_beg;` should happen before the tokenizer finds `{`.
 
-The difference between Case 1 and 2 is that `LAMBDA` in Case 2 is a **terminal** while `bodystmt(B)` in Case 1 is a **non-terminal**.
-This is the reason that you have to put `lambda_head(NUM)` before `LAMBDA` in Case 2.
+The difference between Case 1 and 2 is what kind of effect you expect from MRA.
+If you want the MRA to change the parser status of which the tokenizer takes advantage, you may have to put the MRA by taking the look-ahead behavior into consideration.
 
 ## Conclusion so far
 
