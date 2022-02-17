@@ -817,6 +817,19 @@ command_asgn(A) ::= lhs(B) E command_rhs(C). {
 //command_asgn(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET OP_ASGN(D) command_rhs(E).
 //  { A = new_op_asgn(p, new_call(p, B, STRING_ARY, C, '.'), D, E); }
 //
+command_asgn(A) ::= defn_head(B) f_opt_arglist_paren(C) E command(D).
+                {
+                  A = defn_setup(p, B, C, D);
+                  scope_unnest(p);
+                  p->in_def--;
+                }
+command_asgn(A) ::= defs_head(B) f_opt_arglist_paren(C) E command(D).
+                {
+                  A = defs_setup(p, B, C, D);
+                  scope_unnest(p);
+                  p->in_def--;
+                  p->in_single--;
+                }
 command_rhs ::= command_call. [OP_ASGN]
 command_rhs ::= command_asgn.
 
@@ -987,10 +1000,20 @@ arg(A) ::= arg(B) RSHIFT arg(C). { A = call_bin_op(B, ">>", C); }
 arg(A) ::= arg(B) ANDOP arg(C). { A = new_and(p, B, C); }
 arg(A) ::= arg(B) OROP arg(C). { A = new_or(p, B, C); }
 arg(A) ::= arg(B) QUESTION arg(C) COLON arg(D). { A = new_if(p, B, C, D); }
-arg(A) ::= defn_head(B) f_arglist_paren(C) E arg(D). {
+arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D). {
                   A = defn_setup(p, B, C, D);
                   scope_unnest(p);
+                  p->in_def--;
                 }
+arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D). {
+                  A = defs_setup(p, B, C, D);
+                  scope_unnest(p);
+                  p->in_def--;
+                  p->in_single--;
+                }
+
+f_opt_arglist_paren ::= f_arglist_paren.
+f_opt_arglist_paren ::= none.
 
 arg ::= primary.
 
