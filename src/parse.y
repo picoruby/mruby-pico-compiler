@@ -184,9 +184,6 @@
   #define append(a,b) append_gen(p,(a),(b))
   #define push(a,b) append_gen(p,(a),list1(b))
 
-  #define nsym(x) ((Node*)(intptr_t)(x))
-  #define nint(x) ((Node*)(intptr_t)(x))
-
   static Node*
   new_return(ParserState *p, Node *array)
   {
@@ -329,6 +326,16 @@
         Scope_push(scope);
       }
     }
+  }
+
+  static Node*
+  new_masgn(ParserState *p, Node *mlhs, Node *mrhs)
+  {
+    return list3(
+      atom(ATOM_masgn),
+      cons(atom(ATOM_mlhs), mlhs),
+      list2(atom(ATOM_mrhs), mrhs)
+    );
   }
 
   static Node*
@@ -813,9 +820,21 @@ stmt(A) ::= stmt(B) KW_modifier_until expr_value(C). {
               A = new_until(p, C, B);
             }
 stmt ::= command_asgn.
+stmt(A) ::= mlhs(B) E command_call(C).
+              {
+                A = new_masgn(p, B, C);
+              }
 stmt(A) ::= lhs(B) E mrhs(C). {
               A = new_asgn(p, B, new_array(p, C));
             }
+stmt(A) ::= mlhs(B) E arg(C).
+              {
+                A = new_masgn(p, B, C);
+              }
+stmt(A) ::= mlhs(B) E mrhs(C).
+              {
+                A = new_masgn(p, B, new_array(p, C));
+              }
 stmt(A) ::= arg(B) ASSOC IDENTIFIER(C).
               {
                 Node *lhs = new_lvar(p, C);
@@ -924,6 +943,110 @@ push_cmdarg(STACK) ::= .
                 {
                   STACK = p->cmdarg_stack;
                   CMDARG_PUSH(1);
+                }
+
+mlhs    ::= mlhs_basic.
+mlhs(A) ::= LPAREN mlhs_inner(B) RPAREN.
+              {
+                A = B;
+              }
+
+mlhs_inner    ::= mlhs_basic.
+mlhs_inner(A) ::= LPAREN mlhs_inner(B) RPAREN.
+              {
+                A = B;
+              }
+
+mlhs_basic    ::= mlhs_list.
+mlhs_basic(A) ::= mlhs_list(B) mlhs_item(C).
+              {
+                A = push(B, C);
+              }
+mlhs_basic(A) ::= mlhs_list(B) STAR mlhs_node(C).
+              {
+                A = list2(cons(atom(ATOM_mlhs_pre), B), list2(atom(ATOM_mlhs_rest), C));
+              }
+mlhs_basic(A) ::= mlhs_list(B) STAR mlhs_node(C) COMMA mlhs_post(D).
+              {
+                A = list3(cons(atom(ATOM_mlhs_pre), B), list2(atom(ATOM_mlhs_rest), C), D);
+              }
+mlhs_basic(A) ::= mlhs_list(B) STAR.
+              {
+                A = list2(cons(atom(ATOM_mlhs_pre), B), list2(atom(ATOM_mlhs_rest), new_nil(p)));
+              }
+mlhs_basic(A) ::= mlhs_list(B) STAR COMMA mlhs_post(C).
+              {
+                A = list3(cons(atom(ATOM_mlhs_pre), B), list2(atom(ATOM_mlhs_rest), new_nil(p)), C);
+              }
+mlhs_basic(A) ::= STAR mlhs_node(C) COMMA mlhs_post(D).
+              {
+                A = list3(0, list2(atom(ATOM_mlhs_rest), C), D);
+              }
+mlhs_basic(A) ::= STAR mlhs_node(C).
+              {
+                A = list2(0, list2(atom(ATOM_mlhs_rest), C));
+              }
+mlhs_basic(A) ::= STAR.
+              {
+                A = list2(0, list2(atom(ATOM_mlhs_rest), new_nil(p)));
+              }
+mlhs_basic(A) ::= STAR COMMA mlhs_post(D).
+              {
+                A = list3(0, list2(atom(ATOM_mlhs_rest), new_nil(p)), D);
+              }
+
+mlhs_item    ::= mlhs_node.
+mlhs_item(A) ::= LPAREN mlhs_inner(B) RPAREN.
+                {
+                  A = new_masgn(p, B, NULL);
+                }
+
+mlhs_list(A) ::= mlhs_item(B) COMMA.
+                {
+                  A = push(A, B);
+                }
+mlhs_list(A) ::= mlhs_list(B) mlhs_item(C) COMMA.
+                {
+                  A = push(B, C);
+                }
+
+mlhs_post(A) ::= mlhs_item(B).
+                {
+                  A = list2(atom(ATOM_mlhs_post), B);
+                }
+mlhs_post(A) ::= mlhs_list(B) mlhs_item(C).
+                {
+                  A = cons(atom(ATOM_mlhs_post), push(B, C));
+                }
+
+mlhs_node    ::= variable.
+mlhs_node(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
+                {
+                  A = new_call(p, B, STRING_ARY, C, '.');
+                }
+mlhs_node(A) ::= primary_value(B) call_op(C) IDENTIFIER(D).
+                {
+                  A = new_call(p, B, D, 0, C);
+                }
+mlhs_node(A) ::= primary_value(B) COLON2 IDENTIFIER(D).
+                {
+                  A = new_call(p, B, D, 0, COLON2);
+                }
+mlhs_node(A) ::= primary_value(B) call_op(C) CONSTANT(D).
+                {
+                  A = new_call(p, B, D, 0, C);
+                }
+mlhs_node(A) ::= primary_value(B) COLON2 CONSTANT(C).
+                {
+                  //if (p->in_def || p->in_single)
+                  //  yyerror(p, "dynamic constant assignment")
+                  A = new_colon2(p, B, C);
+                }
+mlhs_node(A) ::= COLON3 CONSTANT(B).
+                {
+                  //if (p->in_def || p->in_single)
+                  //  yyerror(p, "dynamic constant assignment")
+                  A = new_colon3(p, B);
                 }
 
 call_args(A) ::= command(B).
@@ -1799,7 +1922,10 @@ none(A) ::= . { A = 0; }
   }
 
   void showNode1(Node *n, bool isCar, int indent, bool isRightMost) {
-    if (n == NULL) return;
+    if (n == NULL) {
+      printf(" _");
+      return;
+    }
     switch (n->type) {
       case CONS:
         if (isCar) {
@@ -1809,7 +1935,7 @@ none(A) ::= . { A = 0; }
           }
           printf("[");
         } else {
-          printf(", ");
+          printf(",");
         }
         if (n->cons.car && n->cons.car->type != CONS && n->cons.cdr == NULL) {
           isRightMost = true;
@@ -1822,7 +1948,7 @@ none(A) ::= . { A = 0; }
         }
         break;
       case LITERAL:
-        printf("\e[31;1m\"%s\"\e[m", Node_valueName(n));
+        printf(" \e[31;1m\"%s\"\e[m", Node_valueName(n));
         if (isRightMost) {
           printf("]");
         }
