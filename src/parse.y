@@ -816,6 +816,11 @@ stmt ::= command_asgn.
 stmt(A) ::= lhs(B) E mrhs(C). {
               A = new_asgn(p, B, new_array(p, C));
             }
+stmt(A) ::= arg(B) ASSOC IDENTIFIER(C).
+              {
+                Node *lhs = new_lvar(p, C);
+                A = new_asgn(p, lhs, B);
+              }
 stmt ::= expr.
 
 command_asgn(A) ::= lhs(B) E command_rhs(C). {
