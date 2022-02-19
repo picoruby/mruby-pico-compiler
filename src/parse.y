@@ -957,10 +957,13 @@ mlhs_inner(A) ::= LPAREN mlhs_inner(B) RPAREN.
                 A = B;
               }
 
-mlhs_basic    ::= mlhs_list.
+mlhs_basic(A) ::= mlhs_list(B).
+              {
+                A = list2(atom(ATOM_mlhs_pre), B);
+              }
 mlhs_basic(A) ::= mlhs_list(B) mlhs_item(C).
               {
-                A = push(B, C);
+                A = list1(cons(atom(ATOM_mlhs_pre), push(B, C)));
               }
 mlhs_basic(A) ::= mlhs_list(B) STAR mlhs_node(C).
               {
