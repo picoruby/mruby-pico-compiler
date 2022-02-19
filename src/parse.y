@@ -329,8 +329,17 @@
   }
 
   static Node*
+  new_array(ParserState *p, Node *a)
+  {
+    return list2(atom(ATOM_array), a);
+  }
+
+  static Node*
   new_masgn(ParserState *p, Node *mlhs, Node *mrhs)
   {
+    if (Node_atomType(mrhs) != ATOM_array) {
+      mrhs = new_array(p, new_first_arg(p, mrhs));
+    }
     return list3(
       atom(ATOM_masgn),
       cons(atom(ATOM_mlhs), mlhs),
@@ -550,12 +559,6 @@
   new_dstr(ParserState *p, Node *a)
   {
     return list2(atom(ATOM_dstr), a);
-  }
-
-  static Node*
-  new_array(ParserState *p, Node *a)
-  {
-    return list2(atom(ATOM_array), a);
   }
 
   static Node*
@@ -1022,7 +1025,10 @@ mlhs_post(A) ::= mlhs_list(B) mlhs_item(C).
                   A = cons(atom(ATOM_mlhs_post), push(B, C));
                 }
 
-mlhs_node    ::= variable.
+mlhs_node    ::= variable(VAR).
+                {
+                  generate_lvar(p->scope, VAR);
+                }
 mlhs_node(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
                 {
                   A = new_call(p, B, STRING_ARY, C, '.');
@@ -1222,7 +1228,7 @@ primary(A)  ::= lambda_head(NUM) LAMBDA f_larglist(B) preserve_cmdarg_stack(STAC
                     }
 lambda_head(NUM) ::= .
                     {
-                      scope_nest(p, true);
+                      scope_nest(p, false);
                       NUM = p->lpar_beg;
                       p->lpar_beg = ++p->paren_stack_num;
                     }

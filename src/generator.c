@@ -350,7 +350,9 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
 
-void gen_array(Scope *scope, Node *node)
+void gen_masgn_2(Scope *scope, int nargs, Node *mlhs);
+
+void gen_array(Scope *scope, Node *node, Node *mlhs)
 {
   uint8_t prev_gen_array_status = scope->gen_array_status;
   uint8_t prev_gen_array_count = scope->gen_array_count;
@@ -358,8 +360,10 @@ void gen_array(Scope *scope, Node *node)
   scope->gen_array_count = 0;
   int nargs = 0;
   int sp = scope->sp;
-  if (node->cons.cdr->cons.car) {
-    nargs = gen_values(scope, node);
+  if (node->cons.cdr->cons.car) nargs = gen_values(scope, node);
+  if (mlhs) {
+    gen_masgn_2(scope, nargs, mlhs);
+    scope->sp = sp + nargs;
   }
   if (nargs < 0) {
     scope->sp = sp;
@@ -489,19 +493,18 @@ void gen_splat(Scope *scope, Node *node)
   Scope_pushCode(--scope->sp);
 }
 
-void gen_assign(Scope *scope, Node *node)
+void gen_assign(Scope *scope, Node *node, int mrhs_reg)
 {
-  int num;
+  int num, reg;
   LvarScopeReg lvar = {0, 0};
   switch(Node_atomType(node->cons.car)) {
     case (ATOM_lvar):
       lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
       if (lvar.scope_num == 0) {
-        num = lvar.reg_num;
         codegen(scope, node->cons.cdr);
         Scope_pushCode(OP_MOVE);
-        Scope_pushCode(num);
-        Scope_pushCode(scope->sp);
+        Scope_pushCode(lvar.reg_num);
+        Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       } else {
         codegen(scope, node->cons.cdr);
         Scope_pushCode(OP_SETUPVAR);
@@ -528,13 +531,17 @@ void gen_assign(Scope *scope, Node *node)
         default:
           FATALP("error");
       }
-      Scope_pushCode(scope->sp);
+      Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       Scope_pushCode(num);
       break;
     case ATOM_call:
-      codegen(scope, node->cons.cdr->cons.car); /* right hand */
-      int reg = scope->sp;
-      Scope_push(scope);
+      if (!mrhs_reg) {
+        codegen(scope, node->cons.cdr->cons.car); /* right hand */
+        reg = scope->sp;
+        Scope_push(scope);
+      } else {
+        scope->sp++;
+      }
       codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
       Node *call_node = node->cons.car->cons.cdr->cons.cdr;
       int nargs = 0;
@@ -547,18 +554,202 @@ void gen_assign(Scope *scope, Node *node)
       Scope_pushCode(OP_MOVE);
       Scope_pushCode(scope->sp);
       scope->sp -= nargs + 2;
-      Scope_pushCode(scope->sp);
+      Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       Scope_push(scope);
       Scope_pushCode(OP_SEND);
       Scope_pushCode(scope->sp);
       int symIndex = Scope_assignSymIndex(scope, method_name);
       Scope_pushCode(symIndex);
       Scope_pushCode(nargs + 1);
-      scope->sp = reg;
+      mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
+      break;
+    case ATOM_masgn:
+      ERRORP("No nested mass assigment supported!");
       break;
     default:
       FATALP("error");
   }
+}
+
+void gen_masgn(Scope *scope, Node *node)
+{
+  Node *mlhs = node->cons.car;
+  Node *mrhs = node->cons.cdr->cons.car->cons.cdr->cons.car;
+  gen_array(scope, mrhs, mlhs);
+}
+
+void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mrhs_reg)
+{
+  LvarScopeReg lvar = {0, 0};
+  Node *next;
+  while (node) {
+    next = node->cons.cdr;
+    node->cons.cdr = 0;
+    if (*gen_count < nargs) {
+      gen_assign(scope, node, (*mrhs_reg)++);
+      (*gen_count)++;
+    } else {
+      switch (Node_atomType(node->cons.car)) {
+        case (ATOM_lvar):
+          lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
+          if (lvar.scope_num == 0) {
+            Scope_pushCode(OP_LOADNIL);
+            Scope_pushCode(lvar.reg_num);
+          } else {
+            Scope_pushCode(OP_LOADNIL);
+            Scope_pushCode(scope->sp);
+            Scope_pushCode(OP_SETUPVAR);
+            Scope_pushCode(scope->sp);
+            Scope_pushCode(lvar.reg_num);
+            Scope_pushCode(lvar.scope_num - 1);
+          }
+          break;
+        case (ATOM_at_ivar):
+        case (ATOM_at_gvar):
+        case (ATOM_at_const):
+          Scope_pushCode(OP_LOADNIL);
+          Scope_pushCode(scope->sp);
+          switch(Node_atomType(node->cons.car)) {
+            case (ATOM_at_ivar):  Scope_pushCode(OP_SETIV); break;
+            case (ATOM_at_gvar):  Scope_pushCode(OP_SETGV); break;
+            case (ATOM_at_const): Scope_pushCode(OP_SETCONST); break;
+            default: FATALP("error");
+          }
+          Scope_pushCode(scope->sp--);
+          Scope_pushCode(Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr)));
+          break;
+        case (ATOM_call):
+          codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
+          Node *call_node = node->cons.car->cons.cdr->cons.cdr;
+          int nargs = 0;
+          if (call_node->cons.cdr->cons.car) {
+            Scope_push(scope);
+            nargs = gen_values(scope, call_node);
+          }
+          const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
+          if (strcmp(method_name, "[]")) Scope_push(scope);
+          Scope_pushCode(OP_MOVE);
+          Scope_pushCode(scope->sp);
+          scope->sp -= nargs + 2;
+          Scope_pushCode(scope->sp);
+          Scope_push(scope);
+          Scope_pushCode(OP_SEND);
+          Scope_pushCode(scope->sp);
+          int symIndex = Scope_assignSymIndex(scope, method_name);
+          Scope_pushCode(symIndex);
+          Scope_pushCode(nargs + 1);
+          break;
+        default:
+          FATALP("This should not happen!");
+      }
+    }
+    scope->sp++;
+    node = next;
+  }
+}
+
+void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
+{
+  int stop_reg = scope->sp + nargs;
+  int mrhs_reg = scope->sp - nargs;
+  int gen_count = 0;
+  Node *node;
+  int npre = 0;
+  int nrest = 0;
+  int npost = 0;
+  /* mlhs_pre */
+  if (mlhs->cons.cdr->cons.car) {
+    npre++;
+    node = mlhs->cons.cdr->cons.car->cons.cdr;
+    while (node->cons.cdr) {
+      npre++;
+      node = node->cons.cdr;
+    }
+    if (nargs < npre) {
+      FATALP("npre %d", npre);
+    }
+    gen_masgn_node(scope, node, nargs, &gen_count, &mrhs_reg);
+    scope->sp -= gen_count;
+  }
+  /* mlhs_rest */
+  if (mlhs->cons.cdr->cons.cdr) {
+    { /* prepare mlhs_post */
+      if (mlhs->cons.cdr->cons.cdr->cons.cdr) {
+        npost++;
+        node = mlhs->cons.cdr->cons.cdr->cons.cdr->cons.car->cons.cdr;
+        while (node->cons.cdr) {
+          npost++;
+          node = node->cons.cdr;
+        }
+      }
+    }
+    LvarScopeReg lvar = {0, 0};
+    node = mlhs->cons.cdr->cons.cdr->cons.car->cons.cdr;
+    Scope_pushCode(OP_ARRAY2);
+    Scope_pushCode(scope->sp);
+    Scope_pushCode(mrhs_reg);
+    if (nargs - gen_count - npost > 0) {
+      nrest = nargs - gen_count - npost;
+    }
+    Scope_pushCode(nrest);
+    switch (Node_atomType(node->cons.car)) {
+      case (ATOM_lvar):
+        lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
+        if (lvar.scope_num == 0) {
+          Scope_pushCode(OP_MOVE);
+          Scope_pushCode(lvar.reg_num);
+          Scope_pushCode(scope->sp);
+        } else {
+          Scope_pushCode(OP_SETUPVAR);
+          Scope_pushCode(scope->sp);
+          Scope_pushCode(lvar.reg_num);
+          Scope_pushCode(lvar.scope_num - 1);
+        }
+        break;
+      case (ATOM_at_ivar):
+      case (ATOM_at_gvar):
+      case (ATOM_at_const):
+        switch(Node_atomType(node->cons.car)) {
+          case (ATOM_at_ivar):  Scope_pushCode(OP_SETIV); break;
+          case (ATOM_at_gvar):  Scope_pushCode(OP_SETGV); break;
+          case (ATOM_at_const): Scope_pushCode(OP_SETCONST); break;
+          default: FATALP("error");
+        }
+        Scope_pushCode(scope->sp--);
+        Scope_pushCode(Scope_newSym(scope, Node_literalName(node->cons.car->cons.cdr)));
+        break;
+      case (ATOM_call):
+        scope->sp++;
+        codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
+        Node *call_node = node->cons.car->cons.cdr->cons.cdr;
+        int nargs = 0;
+        if (call_node->cons.cdr->cons.car) {
+          Scope_push(scope);
+          nargs = gen_values(scope, call_node);
+        }
+        const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
+        if (strcmp(method_name, "[]")) Scope_push(scope);
+        Scope_pushCode(OP_MOVE);
+        Scope_pushCode(scope->sp);
+        scope->sp -= nargs + 2;
+        Scope_pushCode(scope->sp);
+        Scope_push(scope);
+        Scope_pushCode(OP_SEND);
+        Scope_pushCode(scope->sp);
+        int symIndex = Scope_assignSymIndex(scope, method_name);
+        Scope_pushCode(symIndex);
+        Scope_pushCode(nargs + 1);
+      default:
+        FATALP("Should not happen!");
+    }
+  }
+  /* mlhs_post */
+  if (npost > 0) {
+    node = mlhs->cons.cdr->cons.cdr->cons.cdr->cons.car->cons.cdr;
+    mrhs_reg += nrest;
+    gen_masgn_node(scope, node, nargs, &gen_count, &mrhs_reg);
+  }
+  scope->sp--;
 }
 
 void gen_op_assign(Scope *scope, Node *node)
@@ -601,17 +792,10 @@ void gen_op_assign(Scope *scope, Node *node)
     case (ATOM_at_gvar):
     case (ATOM_at_const):
       switch(Node_atomType(node->cons.car)) {
-        case (ATOM_at_ivar):
-          Scope_pushCode(OP_GETIV);
-          break;
-        case (ATOM_at_gvar):
-          Scope_pushCode(OP_GETGV);
-          break;
-        case (ATOM_at_const):
-          Scope_pushCode(OP_GETCONST);
-          break;
-        default:
-          FATALP("error");
+        case (ATOM_at_ivar):  Scope_pushCode(OP_GETIV); break;
+        case (ATOM_at_gvar):  Scope_pushCode(OP_GETGV); break;
+        case (ATOM_at_const): Scope_pushCode(OP_GETCONST); break;
+        default: FATALP("error");
       }
       Scope_pushCode(scope->sp);
       Scope_push(scope);
@@ -1424,14 +1608,17 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_stmts_new: // NEW_BEGIN
       break;
+    case ATOM_masgn:
+      gen_masgn(scope, tree->cons.cdr);
+      break;
     case ATOM_assign:
-      gen_assign(scope, tree->cons.cdr);
+      gen_assign(scope, tree->cons.cdr, 0);
       break;
     case ATOM_assign_backpatch:
       if (!scope->backpatch) return;
       Scope_backpatchJmpLabel(scope->backpatch->label, scope->vm_code_size);
       Scope_shiftBackpatch(scope);
-      gen_assign(scope, tree->cons.cdr);
+      gen_assign(scope, tree->cons.cdr, 0);
       break;
     case ATOM_op_assign:
       gen_op_assign(scope, tree->cons.cdr);
@@ -1513,7 +1700,7 @@ void codegen(Scope *scope, Node *tree)
       }
       break;
     case ATOM_array:
-      gen_array(scope, tree);
+      gen_array(scope, tree, 0);
       break;
     case ATOM_hash:
       gen_hash(scope, tree->cons.cdr->cons.car);
