@@ -575,7 +575,12 @@ void gen_masgn(Scope *scope, Node *node)
 {
   Node *mlhs = node->cons.car;
   Node *mrhs = node->cons.cdr->cons.car->cons.cdr->cons.car;
-  gen_array(scope, mrhs, mlhs);
+  if (Node_atomType(mrhs) == ATOM_array) {
+    gen_array(scope, mrhs, mlhs);
+  } else {
+    codegen(scope, mrhs);
+    gen_masgn_2(scope, 1, mlhs);
+  }
 }
 
 void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mrhs_reg)
@@ -650,7 +655,6 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
 
 void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
 {
-  int stop_reg = scope->sp + nargs;
   int mrhs_reg = scope->sp - nargs;
   int gen_count = 0;
   Node *node;
@@ -668,7 +672,7 @@ void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
     if (nargs < npre) {
       FATALP("npre %d", npre);
     }
-    gen_masgn_node(scope, node, nargs, &gen_count, &mrhs_reg);
+    gen_masgn_node(scope, mlhs->cons.cdr->cons.car->cons.cdr, nargs, &gen_count, &mrhs_reg);
     scope->sp -= gen_count;
   }
   /* mlhs_rest */
