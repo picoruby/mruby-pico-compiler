@@ -337,9 +337,6 @@
   static Node*
   new_masgn(ParserState *p, Node *mlhs, Node *mrhs)
   {
-    if (Node_atomType(mrhs) != ATOM_array) {
-      mrhs = new_array(p, new_first_arg(p, mrhs));
-    }
     return list3(
       atom(ATOM_masgn),
       cons(atom(ATOM_mlhs), mlhs),
