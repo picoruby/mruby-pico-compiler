@@ -101,6 +101,25 @@ Scope *scope_unnest(Scope *scope)
   return scope->upper;
 }
 
+int count_args(Scope *scope, Node *tree)
+{
+  Node *node = tree;
+  int total_nargs = 0;
+  while (node != NULL) {
+    if (hasCdr(node) &&
+        hasCar(node->cons.cdr) &&
+        Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) {
+      total_nargs++;
+    }
+    if (node->cons.cdr != NULL) {
+      node = node->cons.cdr->cons.car;
+    } else {
+      node = NULL;
+    }
+  }
+  return total_nargs;
+}
+
 int gen_values(Scope *scope, Node *tree)
 {
   uint8_t prev_gen_splat_status = scope->gen_splat_status;
@@ -350,7 +369,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
 
-void gen_masgn_2(Scope *scope, int nargs, Node *mlhs);
+void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat);
 
 void gen_array(Scope *scope, Node *node, Node *mlhs)
 {
@@ -362,7 +381,16 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
   int sp = scope->sp;
   if (node->cons.cdr->cons.car) nargs = gen_values(scope, node);
   if (mlhs) {
-    gen_masgn_2(scope, nargs, mlhs);
+    int total_nargs = 0;
+    bool has_splat = false;
+    if (nargs < 0) {
+      total_nargs = count_args(scope, node);
+      has_splat = true;
+      scope->sp = sp + total_nargs;
+    } else {
+      total_nargs = nargs;
+    }
+    gen_masgn_2(scope, total_nargs, mlhs, has_splat);
     scope->sp = sp + nargs;
   }
   if (nargs < 0) {
@@ -497,6 +525,7 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
 {
   int num, reg;
   LvarScopeReg lvar = {0, 0};
+  Node *mlhs;
   switch(Node_atomType(node->cons.car)) {
     case (ATOM_lvar):
       lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
@@ -564,6 +593,8 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
       break;
     case ATOM_masgn:
+      mlhs = node->cons.cdr->cons.car;
+      // TODO
       ERRORP("No nested mass assigment supported!");
       break;
     default:
@@ -579,18 +610,25 @@ void gen_masgn(Scope *scope, Node *node)
     gen_array(scope, mrhs, mlhs);
   } else {
     codegen(scope, mrhs);
-    gen_masgn_2(scope, 1, mlhs);
+    Scope_push(scope);
+    gen_masgn_2(scope, 1, mlhs, true);
   }
 }
 
-void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mrhs_reg)
+void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mrhs_reg, bool has_splat)
 {
   LvarScopeReg lvar = {0, 0};
   Node *next;
   while (node) {
     next = node->cons.cdr;
     node->cons.cdr = 0;
-    if (*gen_count < nargs) {
+    if (has_splat) {
+      Scope_pushCode(OP_AREF);
+      Scope_pushCode(*mrhs_reg + 1);
+      Scope_pushCode(*mrhs_reg);
+      Scope_pushCode((*gen_count)++);
+      gen_assign(scope, node, *mrhs_reg + 1);
+    } else if (*gen_count < nargs){
       gen_assign(scope, node, (*mrhs_reg)++);
       (*gen_count)++;
     } else {
@@ -648,14 +686,14 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
           FATALP("This should not happen!");
       }
     }
-    scope->sp++;
+    Scope_push(scope);
     node = next;
   }
 }
 
-void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
+void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
 {
-  int mrhs_reg = scope->sp - nargs;
+  int mrhs_reg = scope->sp - total_nargs;
   int gen_count = 0;
   Node *node;
   int npre = 0;
@@ -669,10 +707,7 @@ void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
       npre++;
       node = node->cons.cdr;
     }
-    if (nargs < npre) {
-      FATALP("npre %d", npre);
-    }
-    gen_masgn_node(scope, mlhs->cons.cdr->cons.car->cons.cdr, nargs, &gen_count, &mrhs_reg);
+    gen_masgn_node(scope, mlhs->cons.cdr->cons.car->cons.cdr, total_nargs, &gen_count, &mrhs_reg, has_splat);
     scope->sp -= gen_count;
   }
   /* mlhs_rest */
@@ -689,13 +724,22 @@ void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
     }
     LvarScopeReg lvar = {0, 0};
     node = mlhs->cons.cdr->cons.cdr->cons.car->cons.cdr;
-    Scope_pushCode(OP_ARRAY2);
-    Scope_pushCode(scope->sp);
-    Scope_pushCode(mrhs_reg);
-    if (nargs - gen_count - npost > 0) {
-      nrest = nargs - gen_count - npost;
+    if (total_nargs - gen_count - npost > 0) nrest = total_nargs - gen_count - npost;
+    if (has_splat) {
+      Scope_pushCode(OP_MOVE);
+      Scope_pushCode(mrhs_reg + 1);
+      Scope_pushCode(mrhs_reg);
+      Scope_pushCode(OP_APOST);
+      Scope_pushCode(mrhs_reg + 1);
+      Scope_pushCode(npre);
+      Scope_pushCode(npost);
+      scope->sp = mrhs_reg + 1;
+    } else {
+      Scope_pushCode(OP_ARRAY2);
+      Scope_pushCode(scope->sp);
+      Scope_pushCode(mrhs_reg);
+      Scope_pushCode(nrest);
     }
-    Scope_pushCode(nrest);
     switch (Node_atomType(node->cons.car)) {
       case (ATOM_lvar):
         lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
@@ -726,23 +770,23 @@ void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
         scope->sp++;
         codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
         Node *call_node = node->cons.car->cons.cdr->cons.cdr;
-        int nargs = 0;
+        int total_nargs = 0;
         if (call_node->cons.cdr->cons.car) {
           Scope_push(scope);
-          nargs = gen_values(scope, call_node);
+          total_nargs = gen_values(scope, call_node);
         }
         const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
         if (strcmp(method_name, "[]")) Scope_push(scope);
         Scope_pushCode(OP_MOVE);
         Scope_pushCode(scope->sp);
-        scope->sp -= nargs + 2;
+        scope->sp -= total_nargs + 2;
         Scope_pushCode(scope->sp);
         Scope_push(scope);
         Scope_pushCode(OP_SEND);
         Scope_pushCode(scope->sp);
         int symIndex = Scope_assignSymIndex(scope, method_name);
         Scope_pushCode(symIndex);
-        Scope_pushCode(nargs + 1);
+        Scope_pushCode(total_nargs + 1);
       default:
         FATALP("Should not happen!");
     }
@@ -750,8 +794,18 @@ void gen_masgn_2(Scope *scope, int nargs, Node *mlhs)
   /* mlhs_post */
   if (npost > 0) {
     node = mlhs->cons.cdr->cons.cdr->cons.cdr->cons.car->cons.cdr;
-    mrhs_reg += nrest;
-    gen_masgn_node(scope, node, nargs, &gen_count, &mrhs_reg);
+    if (has_splat) {
+      mrhs_reg += 2;
+      gen_count -= npost;
+    } else {
+      mrhs_reg += nrest;
+    }
+    gen_masgn_node(scope, node, total_nargs, &gen_count, &mrhs_reg, false);
+    //if (has_splat) {
+    //  Scope_pushCode(OP_MOVE);
+    //  Scope_pushCode(6);
+    //  Scope_pushCode(5);
+    //}
   }
   scope->sp--;
 }

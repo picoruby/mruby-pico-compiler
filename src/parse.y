@@ -959,7 +959,7 @@ mlhs_inner(A) ::= LPAREN mlhs_inner(B) RPAREN.
 
 mlhs_basic(A) ::= mlhs_list(B).
               {
-                A = list2(atom(ATOM_mlhs_pre), B);
+                A = list1(cons(atom(ATOM_mlhs_pre), B));
               }
 mlhs_basic(A) ::= mlhs_list(B) mlhs_item(C).
               {
@@ -1006,7 +1006,7 @@ mlhs_item(A) ::= LPAREN mlhs_inner(B) RPAREN.
 
 mlhs_list(A) ::= mlhs_item(B) COMMA.
                 {
-                  A = push(A, B);
+                  A = list1(B);
                 }
 mlhs_list(A) ::= mlhs_list(B) mlhs_item(C) COMMA.
                 {
