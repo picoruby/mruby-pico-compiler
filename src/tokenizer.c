@@ -574,6 +574,8 @@ retry:
       } else {
         if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        } else if ( Regex_match3(&(self->line[self->pos]), "^(\\[\\]=?)", regexResult) ) {
+          strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else {
           value[1] = '\0';
           value[2] = '\0';
