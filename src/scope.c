@@ -61,7 +61,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
 void Scope_pushBackpatch(Scope *self, JmpLabel *label)
 {
   Backpatch *bp = picorbc_alloc(sizeof(Backpatch));
-  bp->next = self->backpatch;
+  bp->next = NULL;
   bp->label = label;
   if (!self->backpatch) {
     self->backpatch = bp;

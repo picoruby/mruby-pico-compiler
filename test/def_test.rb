@@ -29,6 +29,14 @@ class DefTest < PicoRubyTest
     puts my_method
   RUBY
 
+  desc "def method with three optional args"
+  assert_equal(<<~RUBY, "\"default\"\nnil\n0")
+    def my_method(arg1 = "default", arg2=nil, arg3=0)
+      p arg1, arg2, arg3
+    end
+    my_method
+  RUBY
+
   desc "def method with a mandatory arg and an optional arg"
   assert_equal(<<~RUBY, "hey\nyou")
     def my_method(marg, opt = "optional")
