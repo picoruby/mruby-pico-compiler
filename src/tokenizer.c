@@ -160,7 +160,6 @@ void tokenizer_pushToken(Tokenizer *self, int line_num, int pos, Type type, char
 int Tokenizer_advance(Tokenizer* const self, ParserState *p, bool recursive)
 {
   DEBUGP("Aadvance. mode: `%d`", self->mode);
-//  ParserState *p = self->p; /* to use macro in parse_header.h */
   Token_GC(self->currentToken->prev);
   Token *lazyToken = Token_new();
   char value[MAX_TOKEN_LENGTH];
@@ -168,7 +167,9 @@ int Tokenizer_advance(Tokenizer* const self, ParserState *p, bool recursive)
   int cmd_state;
   cmd_state = p->cmd_start;
   p->cmd_start = false;
+  bool ignore_keyword;
 retry:
+  ignore_keyword = false;
   memset(value, '\0', MAX_TOKEN_LENGTH);
   Type type = ON_NONE;
   c[0] = '\0';
@@ -567,12 +568,18 @@ retry:
       value[0] = self->line[self->pos];
       type = SEMICOLON;
       p->state = EXPR_BEG;
-    } else if (p->state == EXPR_FNAME) {
+    } else if (p->state == EXPR_FNAME || p->state == EXPR_DOT) {
       if ( Regex_match3(&(self->line[self->pos]), "^([A-Z]\\w*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = CONSTANT;
       } else {
         if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
+          if (keyword(regexResult[0].value)) {
+            if (!strncmp(regexResult[0].value, "self", sizeof("self") + 1)) {
+            } else {
+              ignore_keyword = true;
+            }
+          }
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else if ( Regex_match3(&(self->line[self->pos]), "^(\\[\\]=?)", regexResult) ) {
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
@@ -580,7 +587,7 @@ retry:
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else if ( Regex_match3(&(self->line[self->pos]), "^(\\*\\*?)", regexResult) ) {
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
-        } else if ( Regex_match3(&(self->line[self->pos]), "^([~/%|&])", regexResult) ) {
+        } else if ( Regex_match3(&(self->line[self->pos]), "^([`~/%|&])", regexResult) ) {
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else {
           value[1] = '\0';
@@ -932,7 +939,7 @@ retry:
   if (type != ON_NONE) {
     /* FIXME from here */
     int8_t kw_num = 0;
-    if (type != STRING) kw_num = keyword(value);
+    if (type != STRING && !ignore_keyword) kw_num = keyword(value);
     if ( kw_num > 0 ) {
       type = (uint8_t)kw_num;
       switch (type) {
