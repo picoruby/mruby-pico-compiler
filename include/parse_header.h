@@ -19,6 +19,7 @@ typedef enum atom_type {
   ATOM_lvar,
   ATOM_array,
   ATOM_hash,
+  ATOM_kw_hash,
   ATOM_assoc_new,
   ATOM_assoc_key,
   ATOM_assoc_value,
@@ -82,8 +83,11 @@ typedef enum atom_type {
   ATOM_margs,
   ATOM_optargs,
   ATOM_m2args,
-  ATOM_tailargs,
   ATOM_args_tail,
+  ATOM_args_tail_kw_args,
+  ATOM_args_tail_kw_arg,
+  ATOM_args_tail_kw_rest_args,
+  ATOM_args_tail_block,
   ATOM_restarg,
   ATOM_class,
   ATOM_sclass,
@@ -97,6 +101,7 @@ typedef enum atom_type {
   ATOM_super,
   ATOM_zsuper,
   ATOM_lambda,
+  ATOM_keyword_rest_args,
 } AtomType;
 
 typedef enum {

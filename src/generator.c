@@ -1323,11 +1323,22 @@ uint32_t setup_parameters(Scope *scope, Node *node)
     nargs = gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
     bbb += (uint32_t)nargs << 7;
   }
-  { /* tailargs */
-    Node *tailargs = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
-    Node *args_tail = tailargs->cons.cdr->cons.car;
-    if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
-    if (args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car->value.name) bbb += 1;
+  /* tailargs */
+  Node *args_tail = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
+  if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
+  { /* kw_args */
+    Node *kw_args = args_tail->cons.cdr->cons.car;
+    // TODO
+  }
+  { /* kw_rest_args */
+    Node *kw_rest_args = args_tail->cons.cdr->cons.cdr->cons.car;
+    if (kw_rest_args->cons.cdr->cons.car && kw_rest_args->cons.cdr->cons.car->value.name) {
+      bbb += 2;
+    }
+  }
+  { /* block_arg */
+    Node *block_arg = args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car;
+    if (block_arg->cons.cdr->cons.car->value.name) bbb += 1;
   }
   /* TODO: kargs */
   return bbb;

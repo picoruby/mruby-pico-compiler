@@ -48,6 +48,8 @@
 %type operation2    { const char* }
 %type f_norm_arg    { const char* }
 %type f_block_arg   { const char* }
+%type opt_f_block_arg { const char* }
+%type f_label       { const char* }
 %type lambda_head           { unsigned int }
 %type preserve_cmdarg_stack { unsigned int }
 %type push_cmdarg           { unsigned int }
@@ -375,8 +377,14 @@
   static Node*
   new_fcall(ParserState *p, Node *b, Node *c)
   {
-    //Node *n = new_self(p);
     return list3(atom(ATOM_fcall), b, c);
+  }
+
+  static Node*
+  new_callargs(ParserState *p, Node *a, Node *b, Node *c)
+  {
+    //return cons(a, cons(b, c));
+    return list3(atom(ATOM_args_add), a, list2(b, c));
   }
 
   static Node*
@@ -534,7 +542,7 @@
       list2(atom(ATOM_optargs), opt),
       list2(atom(ATOM_restarg), rest),
       list2(atom(ATOM_m2args), m2),
-      list2(atom(ATOM_tailargs), tail)
+      tail
     );
   }
 
@@ -548,7 +556,19 @@
   new_args_tail(ParserState *p, Node *kws, Node *kwrest, const char *blk)
   {
     local_add_blk(p, blk);
-    return list4(atom(ATOM_args_tail), kws, kwrest, literal(blk));
+    return list4(
+      atom(ATOM_args_tail),
+      cons(atom(ATOM_args_tail_kw_args), kws),
+      //kwrest,
+      list2(atom(ATOM_args_tail_kw_rest_args), kwrest),
+      list2(atom(ATOM_args_tail_block), literal(blk))
+    );
+  }
+
+  static Node*
+  new_kw_arg(ParserState *p, const char *kw, Node *a)
+  {
+    return cons(atom(ATOM_args_tail_kw_arg), list2(literal(kw), a));
   }
 
   /* (:dstr . a) */
@@ -571,6 +591,12 @@
   new_hash(ParserState *p, Node *a)
   {
     return list2(atom(ATOM_hash), a);
+  }
+
+  static Node*
+  new_kw_hash(ParserState *p, Node *a)
+  {
+    return cons(atom(ATOM_kw_hash), a);
   }
 
   static Node*
@@ -1058,37 +1084,26 @@ mlhs_node(A) ::= COLON3 CONSTANT(B).
                   A = new_colon3(p, B);
                 }
 
-call_args(A) ::= command(B).
-                {
-                  A = list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), B);
-                }
-call_args(A) ::= args(B) opt_block_arg(C).
-                {
-                  A = append(B, C);
-                }
-call_args(A) ::= block_arg(B).
-                {
-                  A = list2(atom(ATOM_args_add), B);
-                }
-
 block_arg(A) ::= AMPER arg(B). { A = new_block_arg(p, B); }
 
 opt_block_arg(A) ::= COMMA block_arg(B). { A = B; }
 opt_block_arg(A) ::= none. { A = 0; }
 
+comma ::= COMMA opt_nl.
+
 args(A) ::= arg(B). { A = new_first_arg(p, B); }
 args(A) ::= STAR arg(B). { A = new_first_arg(p, new_splat(p, B)); }
-args(A) ::= args(B) COMMA arg(C). {
+args(A) ::= args(B) comma arg(C). {
               A = list3(atom(ATOM_args_add), B, C);
             }
-args(A) ::= args(B) COMMA STAR arg(C). {
+args(A) ::= args(B) comma STAR arg(C). {
               A = list3(atom(ATOM_args_add), B, new_splat(p, C));
             }
 
-mrhs(A) ::= args(B) COMMA arg(C). {
+mrhs(A) ::= args(B) comma arg(C). {
               A = list3(atom(ATOM_args_add), B, C);
             }
-mrhs(A) ::= args(B) COMMA STAR arg(C). {
+mrhs(A) ::= args(B) comma STAR arg(C). {
               A = list3(atom(ATOM_args_add), B, new_splat(p, C));
             }
 mrhs(A) ::= STAR arg(B). {
@@ -1356,22 +1371,93 @@ assoc_list ::= none.
 assoc_list(A) ::= assocs(B) trailer. { A = B; }
 
 assocs(A) ::= assoc(B). { A = list1(B); }
-assocs(A) ::= assocs(B) COMMA assoc(C). { A = push(B, C); }
+assocs(A) ::= assocs(B) comma assoc(C). { A = push(B, C); }
 
-assoc(A) ::= arg(B) ASSOC arg(C). {
-  A = list3(atom(ATOM_assoc_new), list2(atom(ATOM_assoc_key), B), list2(atom(ATOM_assoc_value), C));
-}
-assoc(A) ::= LABEL(B) arg(C). {
-A = list3(atom(ATOM_assoc_new), list2(atom(ATOM_assoc_key), new_sym(p, B)), list2(atom(ATOM_assoc_value), C));
-}
+assoc(A) ::= arg(B) ASSOC arg(C).
+              {
+                A = list3(
+                  atom(ATOM_assoc_new),
+                  list2(atom(ATOM_assoc_key), B),
+                  list2(atom(ATOM_assoc_value), C)
+                );
+              }
+assoc(A) ::= LABEL(B) LABEL_TAG arg(C).
+              {
+                A = list3(
+                  atom(ATOM_assoc_new),
+                  list2(atom(ATOM_assoc_key), new_sym(p, B)),
+                  list2(atom(ATOM_assoc_value), C)
+                );
+              }
+assoc(A) ::= DSTAR arg(B).
+              {
+                A = B;
+              }
 
 
 aref_args     ::= none.
-aref_args(A)  ::= args(B) trailer. { A = B; }
+aref_args(A)  ::= args(B) trailer.
+              {
+                A = B;
+              }
+aref_args(A)  ::= args(B) comma assocs(C) trailer.
+              {
+                A = push(B, new_hash(p, C));
+              }
 
-block_args_tail(A) ::= f_block_arg(B).
+f_label ::= LABEL LABEL_TAG.
+                {
+                //  local_nest(p);
+                }
+
+f_block_kw(A) ::= f_label(B) primary_value(C).
+                {
+                  A = new_kw_arg(p, B, C);
+                  //local_unnest(p);
+                }
+f_block_kw(A) ::= f_label(B).
+                {
+                  A = new_kw_arg(p, B, 0);
+                  //local_unnest(p);
+                }
+
+f_block_kwarg(A) ::= f_block_kw(B).
+                {
+                  A = list1(B);
+                }
+f_block_kwarg(A) ::= f_block_kwarg(B) COMMA f_block_kw(C).
+                {
+                  A = push(B, C);
+                }
+
+f_kwrest(A) ::= kwrest_mark IDENTIFIER(B).
+                {
+                  local_add_f(p, B);
+                  A = literal(B);
+                }
+f_kwrest(A) ::= kwrest_mark.
+                {
+                  A = literal("**");
+                }
+
+kwrest_mark ::= POW.
+kwrest_mark ::= DSTAR.
+
+block_args_tail(A) ::= f_block_kwarg(B) COMMA f_kwrest(C) opt_f_block_arg(D).
                       {
-                        A = new_args_tail(p, 0, 0, B);
+                        A = new_args_tail(p, B, C, D);
+                      }
+block_args_tail(A) ::= f_block_kwarg(B) opt_f_block_arg(D).
+                      {
+                        A = new_args_tail(p, B, 0, D);
+                      }
+block_args_tail(A) ::= f_kwrest(C) opt_f_block_arg(D).
+                      {
+                        A = new_args_tail(p, 0, C, D);
+                      }
+block_args_tail(A) ::= f_block_arg(D).
+                      {
+                        A = new_args_tail(p, 0, 0, D);
                       }
 
 opt_block_args_tail(A) ::= COMMA block_args_tail(B).
@@ -1556,9 +1642,41 @@ paren_args(A) ::= LPAREN_EXPR opt_call_args(B) rparen. { A = B; }
 
 opt_call_args ::= none.
 opt_call_args ::= call_args opt_terms.
-opt_call_args(A) ::= args(B) COMMA. {
-                       A = list2(B, 0);
-                     }
+opt_call_args(A) ::= args(B) comma.
+                {
+                  A = list2(B, 0);
+                }
+opt_call_args(A) ::= args(B) comma assocs(C) comma.
+                {
+                  A = new_callargs(p, B, new_kw_hash(p, C), 0);
+                }
+opt_call_args(A) ::= assocs(B) comma.
+                {
+                  A = new_callargs(p, 0, new_kw_hash(p, B), 0);
+                }
+
+call_args(A) ::= command(B).
+                {
+                  A = list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), B);
+                  //A = new_callargs(p, list1(B), 0, 0);
+                }
+call_args(A) ::= args(B) opt_block_arg(D).
+                {
+                  A = append(B, D);
+                  //A = new_callargs(p, B, 0, D);
+                }
+call_args(A) ::= assocs(C) opt_block_arg(D).
+                {
+                  A = new_callargs(p, 0, new_kw_hash(p, C), D);
+                }
+call_args(A) ::= args(B) comma assocs(C) opt_block_arg(D).
+                {
+                  A = new_callargs(p, B, new_kw_hash(p, C), D);
+                }
+call_args(A) ::= block_arg(B).
+                {
+                  A = list2(atom(ATOM_args_add), B);
+                }
 
 case_body(A) ::= KW_when args(B) then
                  compstmt(C)
@@ -1753,8 +1871,48 @@ f_rest_arg(A) ::= restarg_mark. {
   A = literal("*");
 }
 
-args_tail(A) ::= f_block_arg(B). {
-                A = new_args_tail(p, 0, 0, B);
+opt_f_block_arg(A) ::= COMMA f_block_arg(B).
+              {
+                A = B;
+              }
+opt_f_block_arg(A) ::= none.
+              {
+                A = 0;
+              }
+
+f_kw(A) ::= f_label(B) arg(C).
+              {
+                A = new_kw_arg(p, B, C);
+              }
+f_kw(A) ::= f_label(B).
+              {
+                A = new_kw_arg(p, B, 0);
+              }
+
+f_kwarg(A) ::= f_kw(B).
+              {
+                A = list1(B);
+              }
+f_kwarg(A) ::= f_kwarg(B) COMMA f_kw(C).
+              {
+                A = push(B, C);
+              }
+
+args_tail(A) ::= f_kwarg(B) COMMA f_kwrest(C) opt_f_block_arg(D).
+              {
+                A = new_args_tail(p, B, C, D);
+              }
+args_tail(A) ::= f_kwarg(B) opt_f_block_arg(D).
+              {
+                A = new_args_tail(p, B, 0, D);
+              }
+args_tail(A) ::= f_kwrest(C) opt_f_block_arg(D).
+              {
+                A = new_args_tail(p, 0, C, D);
+              }
+args_tail(A) ::= f_block_arg(D).
+              {
+                A = new_args_tail(p, 0, 0, D);
               }
 
 blkarg_mark ::= AMPER.
@@ -1805,7 +1963,7 @@ opt_terms ::= terms.
 
 trailer ::= .
 trailer ::= terms.
-trailer ::= COMMA.
+trailer ::= comma.
 
 term ::= SEMICOLON.
 term ::= nl.

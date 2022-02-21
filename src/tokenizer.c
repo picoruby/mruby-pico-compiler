@@ -442,7 +442,13 @@ retry:
         break;
       case '*':
         switch (value[1]) {
-          case '*': type = POW; break;
+          case '*':
+            if (IS_BEG()) {
+              type = DSTAR;
+            } else {
+              type = POW;
+            }
+            break;
           case '=': type = OP_ASGN; break;
         }
         p->state = EXPR_BEG;
@@ -545,7 +551,10 @@ retry:
     } else if (self->line[self->pos] == ':') {
       value[0] = ':';
       value[1] = '\0';
-      if (Regex_match2(&(self->line[self->pos]), "^:[_A-Za-z0-9'\"]")) {
+      if (p->state == EXPR_LABEL) {
+        type = LABEL_TAG;
+        p->state = EXPR_BEG;
+      } else if (Regex_match2(&(self->line[self->pos]), "^:[_A-Za-z0-9'\"]")) {
         type = SYMBEG;
         if (self->line[self->pos + 1] == '\'' || self->line[self->pos + 1] == '"') {
           p->state = EXPR_CMDARG;
@@ -884,8 +893,8 @@ retry:
       } else if (Regex_match3(&(self->line[self->pos]), "^([A-Za-z0-9_?!]+:)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         value[strlen(value) - 1] = '\0';
-        self->pos++;
         type = LABEL;
+        p->state = EXPR_LABEL;
       } else if (Regex_match3(&(self->line[self->pos]), "^([A-Z]\\w*[!?])", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = IDENTIFIER;
@@ -971,7 +980,11 @@ retry:
           p->state = EXPR_VALUE;
           break;
         case KW_do:
-          if (COND_P()) {
+          if (p->lpar_beg && p->lpar_beg == p->paren_stack_num) {
+            p->lpar_beg = 0;
+            p->paren_stack_num--;
+            type = KW_do_lambda;
+          } else if (COND_P()) {
             type = KW_do_cond;
           } else if ((CMDARG_P() && p->state != EXPR_CMDARG)
                      || p->state == EXPR_ENDARG || p->state == EXPR_BEG){
