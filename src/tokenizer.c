@@ -576,18 +576,24 @@ retry:
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else if ( Regex_match3(&(self->line[self->pos]), "^(\\[\\]=?)", regexResult) ) {
           strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        } else if ( Regex_match3(&(self->line[self->pos]), "^([\\-+]@?)", regexResult) ) {
+          strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        } else if ( Regex_match3(&(self->line[self->pos]), "^(\\*\\*?)", regexResult) ) {
+          strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
+        } else if ( Regex_match3(&(self->line[self->pos]), "^([~/%|&])", regexResult) ) {
+          strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         } else {
           value[1] = '\0';
           value[2] = '\0';
           value[3] = '\0';
-          if (self->line[self->pos] == '`') {
-            value[0] = '`';
-          } else if (self->line[self->pos] == '!') {
+          if (self->line[self->pos] == '!') {
             value[0] = '!';
             if (self->line[self->pos + 1] == '=') value[1] = '=';
+            else if (self->line[self->pos + 1] == '~') value[1] = '~';
           } else if (self->line[self->pos] == '=') {
             value[0] = '=';
-            if (self->line[self->pos + 1] == '=') {
+            if (self->line[self->pos + 1] == '~') value[1] = '~';
+            else if (self->line[self->pos + 1] == '=') {
               value[1] = '=';
               if (self->line[self->pos + 2] == '=') value[2] = '=';
             }
