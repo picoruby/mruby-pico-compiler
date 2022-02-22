@@ -72,6 +72,7 @@ typedef enum atom_type {
   ATOM_while,
   ATOM_until,
   ATOM_case,
+  ATOM_case_body,
   ATOM_break,
   ATOM_next,
   ATOM_redo,

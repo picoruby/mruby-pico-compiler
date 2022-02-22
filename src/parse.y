@@ -66,6 +66,7 @@
   #include <scope.h>
   #include <node.h>
   #include <token.h>
+  #include <debug.h>
 }
 
 %ifdef LEMON_PICORBC
@@ -254,7 +255,8 @@
   static Node*
   new_first_arg(ParserState *p, Node *arg)
   {
-    return list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), arg);
+    return list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), arg));
+    //return list2(atom(ATOM_args_new), arg);
   }
 
   static Node*
@@ -384,7 +386,9 @@
   new_callargs(ParserState *p, Node *a, Node *b, Node *c)
   {
     //return cons(a, cons(b, c));
-    return list3(atom(ATOM_args_add), a, list2(b, c));
+//    ERRORP("Under construction");
+    //return list2(atom(ATOM_args_add), list4(atom(ATOM_args_new), a, b, c));
+    return push(a, push(b, c));
   }
 
   static Node*
@@ -620,7 +624,7 @@
   static Node*
   new_case(ParserState *p, Node *b, Node *c)
   {
-    return list3(atom(ATOM_case), b, c);
+    return list3(atom(ATOM_case), b, cons(atom(ATOM_case_body), c));
   }
 
   static Node*
@@ -734,7 +738,7 @@
         return a;
       }
     }
-    fprintf(stderr, "concat_string(); This should not happen\n");
+    FATALP("concat_string(); This should not happen");
   }
 
   static Node*
@@ -950,7 +954,10 @@ command_call ::= block_command.
 
 block_command ::= block_call.
 
-command(A) ::= operation(B) command_args(C). [LOWEST] { A = new_fcall(p, B, C); }
+command(A) ::= operation(B) command_args(C). [LOWEST]
+                {
+                  A = new_fcall(p, B, C);
+                }
 command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). {
                 A = new_call(p, B, D, E, C);
               }
@@ -966,6 +973,7 @@ command(A) ::= KW_next call_args(B). { A = new_next(p, ret_args(p, B)); }
 command_args(A) ::= push_cmdarg(STACK) call_args(B).
                 {
                   p->cmdarg_stack = STACK;
+                  //A = list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), B));
                   A = B;
                 }
 push_cmdarg(STACK) ::= .
@@ -1084,14 +1092,24 @@ mlhs_node(A) ::= COLON3 CONSTANT(B).
                   A = new_colon3(p, B);
                 }
 
-block_arg(A) ::= AMPER arg(B). { A = new_block_arg(p, B); }
+block_arg(A) ::= AMPER arg(B).
+              {
+                A = new_block_arg(p, B);
+              }
 
-opt_block_arg(A) ::= COMMA block_arg(B). { A = B; }
+opt_block_arg(A) ::= comma block_arg(B).
+              {
+                //A = list2(atom(ATOM_args_add), B);
+                A = B;
+              }
 opt_block_arg(A) ::= none. { A = 0; }
 
 comma ::= COMMA opt_nl.
 
-args(A) ::= arg(B). { A = new_first_arg(p, B); }
+args(A) ::= arg(B).
+              {
+                A = new_first_arg(p, B);
+              }
 args(A) ::= STAR arg(B). { A = new_first_arg(p, new_splat(p, B)); }
 args(A) ::= args(B) comma arg(C). {
               A = list3(atom(ATOM_args_add), B, C);
@@ -1226,7 +1244,7 @@ primary(A)  ::= KW_yield opt_paren_args(B). { A = new_yield(p, B); }
 primary(A)  ::= KW_not LPAREN_EXPR expr(B) rparen. { A = call_uni_op(p, B, "!"); }
 primary(A)  ::= KW_not LPAREN_EXPR rparen. { A = call_uni_op(p, new_nil(p), "!"); }
 primary(A)  ::= operation(B) brace_block(C). {
-                  A = new_fcall(p, B, list2(0, C));
+                  A = new_fcall(p, B, list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), C)));
                 }
 primary     ::= method_call.
 primary(A)  ::= method_call(B) brace_block(C). {
@@ -1657,13 +1675,12 @@ opt_call_args(A) ::= assocs(B) comma.
 
 call_args(A) ::= command(B).
                 {
-                  A = list3(atom(ATOM_args_add), list1(atom(ATOM_args_new)), B);
-                  //A = new_callargs(p, list1(B), 0, 0);
+                  A = new_callargs(p, new_first_arg(p, B), 0, 0);
                 }
 call_args(A) ::= args(B) opt_block_arg(D).
                 {
-                  A = append(B, D);
-                  //A = new_callargs(p, B, 0, D);
+                  //A = append(B, D);
+                  A = new_callargs(p, B, 0, D);
                 }
 call_args(A) ::= assocs(C) opt_block_arg(D).
                 {
@@ -1680,12 +1697,13 @@ call_args(A) ::= block_arg(B).
 
 case_body(A) ::= KW_when args(B) then
                  compstmt(C)
-                 cases(D). {
-                   A = list3(B, C, D);
-                 }
+                 cases(D).
+                {
+                  A = append(list2(B, C), D);
+                }
 cases(A) ::= opt_else(B). {
                if (B) {
-                 A = list3(0, B, 0);
+                 A = list1(B);
                } else {
                  A = 0;
                }
@@ -2072,7 +2090,6 @@ none(A) ::= . { A = 0; }
   }
 
   void freeNode(Node *n) {
-    //printf("before free cons: %p\n", n);
     if (n == NULL) return;
     if (n->type == CONS) {
       freeNode(n->cons.car);
@@ -2080,7 +2097,6 @@ none(A) ::= . { A = 0; }
     } else if (n->type == LITERAL) {
       LEMON_FREE((char *)n->value.name);
     }
-    //printf("after free cons: %p\n", n);
     LEMON_FREE(n);
   }
 

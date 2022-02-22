@@ -101,17 +101,13 @@ Scope *scope_unnest(Scope *scope)
   return scope->upper;
 }
 
-int count_args(Scope *scope, Node *tree)
+int count_args(Scope *scope, Node *node)
 {
-  Node *node = tree;
   int total_nargs = 0;
-  while (node != NULL) {
-    if (hasCdr(node) &&
-        hasCar(node->cons.cdr) &&
-        Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) {
-      total_nargs++;
-    }
-    if (node->cons.cdr != NULL) {
+  while (node) {
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) break;
+    total_nargs++;
+    if (hasCdr(node)) {
       node = node->cons.cdr->cons.car;
     } else {
       node = NULL;
@@ -127,20 +123,23 @@ int gen_values(Scope *scope, Node *tree)
   int nargs = 0;
   int splat = 0;
   Node *node = tree;
-  while (node != NULL) {
-    if (hasCdr(node) &&
-        hasCar(node->cons.cdr) &&
-        Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) {
-      nargs++;
-      Node *node2 = node->cons.cdr->cons.car;
-      if (hasCdr(node2) &&
-          hasCdr(node2->cons.cdr) &&
-          hasCar(node2->cons.cdr->cons.cdr) &&
-          Node_atomType(node2->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
-        splat = nargs;
+  while (node) {
+    Node *node2;
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) {
+      node2 = node->cons.cdr->cons.car->cons.cdr;
+      if (node2 && hasCar(node2) &&
+          Node_atomType(node2->cons.car) == ATOM_splat) {
+        splat = 1;
       }
+      break;
     }
-    if (node->cons.cdr != NULL) {
+    if (hasCdr(node) && hasCar(node->cons.cdr)) nargs++;
+    node2 = node->cons.cdr->cons.cdr;
+    if (node2 && hasCar(node2) &&
+        Node_atomType(node2->cons.car) == ATOM_splat) {
+      splat = nargs;
+    }
+    if (node->cons.cdr) {
       node = node->cons.cdr->cons.car;
     } else {
       node = NULL;
@@ -148,7 +147,7 @@ int gen_values(Scope *scope, Node *tree)
   }
   if (splat > 0) {
     scope->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
-    if (splat == nargs) { // The first arg is a splat
+    if (splat == 1) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
@@ -327,12 +326,14 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
       if (nargs < 0) {// splat
         op = OP_SENDV;
       } else if (nargs > 0 && // case: method_name(1) { puts "hello" }
+          node->cons.cdr->cons.car->cons.cdr->cons.cdr &&
           Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
         op = OP_SENDB;
         nargs--;
       } else if (// case: method_name { puts "hello" }
-                 Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_block ) {
+                 Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_block ) {
         op = OP_SENDB;
+        nargs--;
         scope->sp--;
       }
     }
@@ -1055,67 +1056,69 @@ void gen_and_or(Scope *scope, Node *node, int opcode)
 
 void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[])
 {
-  if (Node_atomType(node->cons.car) != ATOM_args_add) {
-    return;
-  } else {
-    gen_case_when(scope, node->cons.car->cons.cdr, cond_reg, label_true + 1);
-    scope->sp = cond_reg;
-    const char *method;
-    if (Node_atomType(node->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
-      method = "__case_eqq";
-      codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr);
+  if (Node_atomType(node->cons.car) == ATOM_args_add) {
+    if (Node_atomType(node->cons.car->cons.cdr->cons.car) != ATOM_args_new) {
+      gen_case_when(scope, node->cons.car->cons.cdr, cond_reg, label_true + 1);
+      node = node->cons.car->cons.cdr->cons.cdr;
     } else {
-      method = "===";
-      codegen(scope, node->cons.car->cons.cdr->cons.cdr);
+      node = node->cons.car->cons.cdr->cons.car->cons.cdr;
     }
-    Scope_pushCode(OP_MOVE);
-    Scope_pushCode(scope->sp + 1);
-    Scope_pushCode(cond_reg - 1);
-    Scope_pushCode(OP_SEND);
-    Scope_pushCode(cond_reg);
-    Scope_pushCode(Scope_newSym(scope, method));
-    Scope_pushCode(1);
-    /* when condition matched */
-    Scope_pushCode(OP_JMPIF);
-    Scope_pushCode(cond_reg);
-    *label_true = Scope_reserveJmpLabel(scope);
-    scope->sp = cond_reg;
+  } else {
+    return;
   }
+  scope->sp = cond_reg;
+  const char *method;
+  if (Node_atomType(node->cons.car) == ATOM_splat) {
+    method = "__case_eqq";
+    codegen(scope, node->cons.car->cons.cdr);
+  } else {
+    method = "===";
+    codegen(scope, node);
+  }
+  Scope_pushCode(OP_MOVE);
+  Scope_pushCode(scope->sp + 1);
+  Scope_pushCode(cond_reg - 1);
+  Scope_pushCode(OP_SEND);
+  Scope_pushCode(cond_reg);
+  Scope_pushCode(Scope_newSym(scope, method));
+  Scope_pushCode(1);
+  /* when condition matched */
+  Scope_pushCode(OP_JMPIF);
+  Scope_pushCode(cond_reg);
+  *label_true = Scope_reserveJmpLabel(scope);
+  scope->sp = cond_reg;
 }
 
 void gen_case(Scope *scope, Node *node)
 {
   int start_reg = scope->sp;
-  /* count number of cases */
-  Node *case_body = node->cons.cdr->cons.car;
+  /* count number of cases including else clause */
+  Node *a_case = node->cons.cdr->cons.car;
   int i = 0;
   while (1) {
-    if (case_body && case_body->cons.car) i++; else break;
-    case_body = case_body->cons.cdr->cons.cdr->cons.car;
+    if (a_case && a_case->cons.car) i++; else break;
+    if (a_case->cons.cdr) {
+      a_case = a_case->cons.cdr->cons.cdr;
+    } else {
+      break;
+    }
   }
-  int when_count = i;
+  int when_count = i - 1;
   JmpLabel *label_end_array[when_count];
   /* case expression */
   codegen(scope, node->cons.car);
   Scope_push(scope);
   int cond_reg = scope->sp; /* cond_reg === when_expr */
-  /* each case_body */
-  case_body = node->cons.cdr->cons.car;
+  /* each a_case */
+  Node *case_body = node->cons.cdr->cons.car;
   i = 0;
+  a_case = case_body;
   while (1) {
     /* when expression */
-    int args_count = 0;
-    {
-      /* count number of args */
-      Node *args_node = case_body;
-      while (1) {
-        if (Node_atomType(args_node->cons.car) != ATOM_args_add) break;
-        args_count++;
-        args_node = args_node->cons.car->cons.cdr;
-      }
-    }
+    /* count number of args */
+    int args_count = count_args(scope, a_case);
     JmpLabel *label_true_array[args_count];
-    gen_case_when(scope, case_body, cond_reg, label_true_array);
+    gen_case_when(scope, a_case->cons.cdr, cond_reg, label_true_array);
     /* when condition didn't match */
     Scope_pushCode(OP_JMP);
     JmpLabel *label_false = Scope_reserveJmpLabel(scope);
@@ -1125,7 +1128,8 @@ void gen_case(Scope *scope, Node *node)
     { /* inside when */
       scope->sp = cond_reg;
       int32_t current_vm_code_size = scope->vm_code_size;
-      codegen(scope, case_body->cons.cdr->cons.car);
+      /* stmts_add */
+      codegen(scope, a_case->cons.cdr->cons.cdr->cons.car);
       /* if code was empty */
       if (current_vm_code_size == scope->vm_code_size) {
         Scope_pushCode(OP_LOADNIL);
@@ -1134,19 +1138,21 @@ void gen_case(Scope *scope, Node *node)
     }
     Scope_pushCode(OP_JMP);
     label_end_array[i++] = Scope_reserveJmpLabel(scope);
-    /* next case */
     Scope_backpatchJmpLabel(label_false, scope->vm_code_size);
-    case_body = case_body->cons.cdr->cons.cdr->cons.car;
-    if (case_body) {
-      if (case_body->cons.car) {
-        continue;
-      } else {
-        if (case_body->cons.cdr->cons.car) {
-          /* else */
-          codegen(scope, case_body->cons.cdr->cons.car);
-          break;
-        }
+    /* next case */
+    a_case = a_case->cons.cdr->cons.cdr;
+    if (a_case && a_case->cons.cdr && Node_atomType(a_case->cons.cdr->cons.car) == ATOM_args_add) {
+      continue;
+    } else if (a_case && a_case->cons.cdr) {
+      if (Node_atomType(a_case->cons.cdr->cons.car) == ATOM_stmts_add) {
+        /* else */
+        codegen(scope, a_case->cons.cdr->cons.car);
+      } else if (Node_atomType(a_case->cons.cdr->cons.car) == ATOM_stmts_new) {
+        /* empty else */
+        Scope_pushCode(OP_LOADNIL);
+        Scope_pushCode(start_reg + 1);
       }
+      break;
     } else {
       /* no else clause */
       Scope_pushCode(OP_LOADNIL);
