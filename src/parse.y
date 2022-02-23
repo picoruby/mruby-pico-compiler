@@ -792,11 +792,11 @@
 %left KW_or KW_and.
 %right KW_not.
 %right E OP_ASGN.
-%right QUESTION COLON.
+%right QUESTION COLON LABEL_TAG.
 %nonassoc DOT2 DOT3 BDOT2 BDOT3.
 %left OROP.
 %left ANDOP.
-%nonassoc EQ EQQ NEQ.
+%nonassoc CMP EQ EQQ NEQ.
 %left GT GEQ LT LEQ. // > >= < <=
 %left OR XOR.
 %left AND.
@@ -958,9 +958,10 @@ command(A) ::= operation(B) command_args(C). [LOWEST]
                 {
                   A = new_fcall(p, B, C);
                 }
-command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). {
-                A = new_call(p, B, D, E, C);
-              }
+command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). [LOWEST]
+                {
+                  A = new_call(p, B, D, E, C);
+                }
 command(A) ::= KW_super command_args(B).
               {
                 A = new_super(p, B);
