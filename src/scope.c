@@ -55,6 +55,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->last_assign_symbol = NULL;
   self->backpatch = NULL;
   self->irep_parameters = 0;
+  self->nargs_before_splat = 0;
   return self;
 }
 
