@@ -126,10 +126,19 @@ int gen_values(Scope *scope, Node *tree)
   while (node) {
     Node *node2;
     if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) {
+      if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == NULL) {
+        /* kw_hash is the first arg */
+        scope->sp--;
+        nargs--;
+      }
       node2 = node->cons.cdr->cons.car->cons.cdr;
       if (node2 && hasCar(node2) &&
           Node_atomType(node2->cons.car) == ATOM_splat) {
         splat = 1;
+      }
+      if (node->cons.cdr && node->cons.cdr->cons.cdr &&
+          Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
+        nargs++;
       }
       break;
     }
@@ -138,6 +147,11 @@ int gen_values(Scope *scope, Node *tree)
     if (node2 && hasCar(node2) &&
         Node_atomType(node2->cons.car) == ATOM_splat) {
       splat = nargs;
+    }
+    if (node->cons.cdr->cons.cdr && node->cons.cdr->cons.cdr->cons.cdr) {
+      if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
+        nargs++;
+      }
     }
     if (node->cons.cdr) {
       node = node->cons.cdr->cons.car;
@@ -1837,6 +1851,14 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_splat:
       gen_splat(scope, tree->cons.cdr);
+      break;
+    case ATOM_kw_hash:
+      Scope_push(scope);
+      codegen(scope, tree->cons.cdr);
+      break;
+    case ATOM_block_arg:
+      Scope_push(scope);
+      codegen(scope, tree->cons.cdr);
       break;
     case ATOM_def:
       gen_def(scope, tree->cons.cdr, false);
