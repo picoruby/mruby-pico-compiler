@@ -1781,7 +1781,7 @@ void codegen(Scope *scope, Node *tree)
       gen_array(scope, tree, 0);
       break;
     case ATOM_hash:
-      gen_hash(scope, tree->cons.cdr->cons.car);
+      gen_hash(scope, tree->cons.cdr);
       break;
     case ATOM_at_ivar:
     case ATOM_at_gvar:

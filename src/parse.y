@@ -383,12 +383,12 @@
   }
 
   static Node*
-  new_callargs(ParserState *p, Node *a, Node *b, Node *c)
+  new_callargs(ParserState *p, Node *args, Node *assocs, Node *block)
   {
-    //return cons(a, cons(b, c));
-//    ERRORP("Under construction");
-    //return list2(atom(ATOM_args_add), list4(atom(ATOM_args_new), a, b, c));
-    return push(a, push(b, c));
+    if (Node_atomType(args) == ATOM_NONE) {
+      args = new_first_arg(p, args);
+    }
+    return push(push(args, assocs), block);
   }
 
   static Node*
@@ -594,7 +594,7 @@
   static Node*
   new_hash(ParserState *p, Node *a)
   {
-    return list2(atom(ATOM_hash), a);
+    return cons(atom(ATOM_hash), a);
   }
 
   static Node*
@@ -1680,7 +1680,6 @@ call_args(A) ::= command(B).
                 }
 call_args(A) ::= args(B) opt_block_arg(D).
                 {
-                  //A = append(B, D);
                   A = new_callargs(p, B, 0, D);
                 }
 call_args(A) ::= assocs(C) opt_block_arg(D).
