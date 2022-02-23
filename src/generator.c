@@ -1162,7 +1162,10 @@ void gen_case(Scope *scope, Node *node)
   }
   for (i = 0; i < when_count; i++)
     Scope_backpatchJmpLabel(label_end_array[i], scope->vm_code_size);
-  scope->sp = start_reg + 1;
+  scope->sp = start_reg;
+  Scope_pushCode(OP_MOVE);
+  Scope_pushCode(scope->sp++);
+  Scope_pushCode(scope->sp--);
 }
 
 void gen_if(Scope *scope, Node *node)

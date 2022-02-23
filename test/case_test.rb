@@ -50,4 +50,12 @@ class CaseTest < PicoRubyTest
     p res
   RUBY
 
+  desc "case expression as an argument"
+  assert_equal(<<~RUBY, "true")
+    p case 0
+    when 0
+      true
+    end
+  RUBY
+
 end
