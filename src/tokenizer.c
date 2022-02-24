@@ -582,6 +582,11 @@ retry:
       if ( Regex_match3(&(self->line[self->pos]), "^([A-Z]\\w*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = CONSTANT;
+      } else if (self->line[self->pos] == '(') {
+        value[0] = '(';
+        value[1] = '\0';
+        type = LPAREN_EXPR;
+        p->state = EXPR_BEG;
       } else {
         if ( Regex_match3(&(self->line[self->pos]), "^(\\w+[!?=]?)", regexResult) ) {
           if (keyword(regexResult[0].value)) {

@@ -1667,6 +1667,10 @@ method_call(A)  ::= operation(B) paren_args(C). {
 method_call(A)  ::= primary_value(B) call_op(C) operation2(D) opt_paren_args(E). {
                       A = new_call(p, B, D, E, C);
                     }
+method_call(A)  ::= primary_value(B) call_op(C) paren_args(D).
+                    {
+                      A = new_call(p, B, "call", D, C);
+                    }
 method_call(A)  ::= KW_super paren_args(B).
                     {
                       A = new_super(p, B);
