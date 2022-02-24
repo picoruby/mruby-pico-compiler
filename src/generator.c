@@ -14,6 +14,12 @@
 #include <dump.h>
 #include <my_regex.h>
 
+typedef struct {
+  int nargs;
+  int op_send;
+  bool has_splat;
+} GenValuesResult;
+
 #define END_SECTION_SIZE 8
 
 bool hasCar(Node *n) {
@@ -116,41 +122,52 @@ int count_args(Scope *scope, Node *node)
   return total_nargs;
 }
 
-int gen_values(Scope *scope, Node *tree)
+void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
+  result->nargs = 0;
+  result->has_splat = false;
   uint8_t prev_gen_splat_status = scope->gen_splat_status;
   scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
-  int nargs = 0;
-  int splat = 0;
+  int splat_pos = 0;
+  Node *block_arg = NULL;
   Node *node = tree;
   while (node) {
     Node *node2;
     if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) {
-      if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == NULL) {
+      if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_NONE) {
         /* kw_hash is the first arg */
         scope->sp--;
-        nargs--;
+        result->nargs--;
       }
       node2 = node->cons.cdr->cons.car->cons.cdr;
       if (node2 && hasCar(node2) &&
           Node_atomType(node2->cons.car) == ATOM_splat) {
-        splat = 1;
+        splat_pos = 1;
       }
-      if (node->cons.cdr && node->cons.cdr->cons.cdr &&
-          Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
-        nargs++;
+      if (node->cons.cdr && node->cons.cdr->cons.cdr) {
+        if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
+          result->nargs++;
+          FATALP("kw_hash");
+        }
+        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+          block_arg = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
+          FATALP("block");
+        }
       }
       break;
     }
-    if (hasCdr(node) && hasCar(node->cons.cdr)) nargs++;
+    if (hasCdr(node) && hasCar(node->cons.cdr)) result->nargs++;
     node2 = node->cons.cdr->cons.cdr;
     if (node2 && hasCar(node2) &&
         Node_atomType(node2->cons.car) == ATOM_splat) {
-      splat = nargs;
+      splat_pos = result->nargs;
     }
     if (node->cons.cdr->cons.cdr && node->cons.cdr->cons.cdr->cons.cdr) {
       if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
-        nargs++;
+        result->nargs++;
+      }
+      if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+          FATALP("block_2");
       }
     }
     if (node->cons.cdr) {
@@ -159,9 +176,9 @@ int gen_values(Scope *scope, Node *tree)
       node = NULL;
     }
   }
-  if (splat > 0) {
+  if (splat_pos > 0) {
     scope->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
-    if (splat == 1) { // The first arg is a splat
+    if (splat_pos == 1) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
@@ -170,8 +187,11 @@ int gen_values(Scope *scope, Node *tree)
   }
   codegen(scope, tree->cons.cdr->cons.car);
   scope->gen_splat_status = prev_gen_splat_status;
-  if (splat > 0) return -1;
-  return nargs;
+  if (splat_pos > 0) {
+    result->has_splat = true;
+    result->op_send = OP_SENDV;
+  }
+  result->op_send = OP_SEND;
 }
 
 void gen_str(Scope *scope, Node *node)
@@ -306,7 +326,7 @@ void gen_int(Scope *scope, Node *node, Misc is_neg)
 
 void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
 {
-  int nargs = 0;
+  GenValuesResult result = {0};
   int op = OP_SEND;
   int reg = scope->sp;
   // receiver
@@ -336,18 +356,18 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
       op = OP_SENDB;
     } else {
       Scope_push(scope);
-      nargs = gen_values(scope, node);
-      if (nargs < 0) {// splat
+      gen_values(scope, node, &result);
+      if (result.has_splat) {
         op = OP_SENDV;
-      } else if (nargs > 0 && // case: method_name(1) { puts "hello" }
+      } else if (result.nargs > 0 && // case: method_name(1) { puts "hello" }
           node->cons.cdr->cons.car->cons.cdr->cons.cdr &&
           Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
         op = OP_SENDB;
-        nargs--;
+        result.nargs--;
       } else if (// case: method_name { puts "hello" }
                  Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_block ) {
         op = OP_SENDB;
-        nargs--;
+        result.nargs--;
         scope->sp--;
       }
     }
@@ -379,7 +399,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     Scope_pushCode(scope->sp);
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
-    if (op != OP_SENDV) Scope_pushCode(nargs);
+    if (op != OP_SENDV) Scope_pushCode(result.nargs);
   }
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
@@ -392,35 +412,33 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
   uint8_t prev_gen_array_count = scope->gen_array_count;
   scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
   scope->gen_array_count = 0;
-  int nargs = 0;
   int sp = scope->sp;
-  if (node->cons.cdr->cons.car) nargs = gen_values(scope, node);
+  GenValuesResult result = {0};
+  if (node->cons.cdr->cons.car) gen_values(scope, node, &result);
   if (mlhs) {
     int total_nargs = 0;
-    bool has_splat = false;
-    if (nargs < 0) {
+    if (result.has_splat) {
       total_nargs = count_args(scope, node);
-      has_splat = true;
       scope->sp = sp + total_nargs;
     } else {
-      total_nargs = nargs;
+      total_nargs = result.nargs;
     }
-    gen_masgn_2(scope, total_nargs, mlhs, has_splat);
-    scope->sp = sp + nargs;
+    gen_masgn_2(scope, total_nargs, mlhs, result.has_splat);
+    scope->sp = sp + result.nargs;
   }
-  if (nargs < 0) {
+  if (result.has_splat) {
     scope->sp = sp;
-  } else if (nargs == 0) {
+  } else if (result.nargs == 0) {
     Scope_pushCode(OP_ARRAY);
     Scope_pushCode(scope->sp);
     Scope_pushCode(0);
   } else {
-    nargs %= PICORUBY_ARRAY_SPLIT_COUNT;
-    if (nargs) {
-      scope->sp -= nargs;
+    result.nargs %= PICORUBY_ARRAY_SPLIT_COUNT;
+    if (result.nargs) {
+      scope->sp -= result.nargs;
       Scope_pushCode(OP_ARRAY);
       Scope_pushCode(scope->sp);
-      Scope_pushCode(nargs);
+      Scope_pushCode(result.nargs);
       if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
         Scope_pushCode(OP_ARYCAT);
         Scope_pushCode(--scope->sp);
@@ -588,23 +606,23 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       }
       codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
       Node *call_node = node->cons.car->cons.cdr->cons.cdr;
-      int nargs = 0;
+      GenValuesResult result = {0};
       if (call_node->cons.cdr->cons.car) {
         Scope_push(scope);
-        nargs = gen_values(scope, call_node);
+        gen_values(scope, call_node, &result);
       }
       const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
       if (strcmp(method_name, "[]")) Scope_push(scope);
       Scope_pushCode(OP_MOVE);
       Scope_pushCode(scope->sp);
-      scope->sp -= nargs + 2;
+      scope->sp -= result.nargs + 2;
       Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       Scope_push(scope);
       Scope_pushCode(OP_SEND);
       Scope_pushCode(scope->sp);
       int symIndex = Scope_assignSymIndex(scope, method_name);
       Scope_pushCode(symIndex);
-      Scope_pushCode(nargs + 1);
+      Scope_pushCode(result.nargs + 1);
       mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
       break;
     case ATOM_masgn:
@@ -679,23 +697,23 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
         case (ATOM_call):
           codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
           Node *call_node = node->cons.car->cons.cdr->cons.cdr;
-          int nargs = 0;
+          GenValuesResult result = {0};
           if (call_node->cons.cdr->cons.car) {
             Scope_push(scope);
-            nargs = gen_values(scope, call_node);
+            gen_values(scope, call_node, &result);
           }
           const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
           if (strcmp(method_name, "[]")) Scope_push(scope);
           Scope_pushCode(OP_MOVE);
           Scope_pushCode(scope->sp);
-          scope->sp -= nargs + 2;
+          scope->sp -= result.nargs + 2;
           Scope_pushCode(scope->sp);
           Scope_push(scope);
           Scope_pushCode(OP_SEND);
           Scope_pushCode(scope->sp);
           int symIndex = Scope_assignSymIndex(scope, method_name);
           Scope_pushCode(symIndex);
-          Scope_pushCode(nargs + 1);
+          Scope_pushCode(result.nargs + 1);
           break;
         default:
           FATALP("This should not happen!");
@@ -785,23 +803,23 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
         scope->sp++;
         codegen(scope, node->cons.car->cons.cdr->cons.car); /* left hand */
         Node *call_node = node->cons.car->cons.cdr->cons.cdr;
-        int total_nargs = 0;
+        GenValuesResult result = {0};
         if (call_node->cons.cdr->cons.car) {
           Scope_push(scope);
-          total_nargs = gen_values(scope, call_node);
+          gen_values(scope, call_node, &result);
         }
         const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
         if (strcmp(method_name, "[]")) Scope_push(scope);
         Scope_pushCode(OP_MOVE);
         Scope_pushCode(scope->sp);
-        scope->sp -= total_nargs + 2;
+        scope->sp -= result.nargs + 2;
         Scope_pushCode(scope->sp);
         Scope_push(scope);
         Scope_pushCode(OP_SEND);
         Scope_pushCode(scope->sp);
         int symIndex = Scope_assignSymIndex(scope, method_name);
         Scope_pushCode(symIndex);
-        Scope_pushCode(total_nargs + 1);
+        Scope_pushCode(result.nargs + 1);
       default:
         FATALP("Should not happen!");
     }
@@ -992,7 +1010,8 @@ void gen_op_assign(Scope *scope, Node *node)
         Scope_pushCode(scope->sp - 2);
       }
       Scope_pushCode(scope->sp);
-      if (!is_call_name_at_ary) gen_values(scope, node->cons.car->cons.cdr->cons.cdr);
+      GenValuesResult result = {0};
+      if (!is_call_name_at_ary) gen_values(scope, node->cons.car->cons.cdr->cons.cdr, &result);
       /* exec assignment .[]= or .attr= */
       Scope_pushCode(OP_SEND);
       scope->sp--;
@@ -1328,23 +1347,23 @@ uint32_t setup_parameters(Scope *scope, Node *node)
 {
   if (Node_atomType(node) != ATOM_block_parameters) return 0;
   uint32_t bbb = 0;
-  uint8_t nargs;
+  GenValuesResult result = {0};
   { /* mandatory args */
-    nargs = gen_values(scope, node->cons.cdr->cons.car);
-    bbb = (uint32_t)nargs << 18;
+    gen_values(scope, node->cons.cdr->cons.car, &result);
+    bbb = (uint32_t)result.nargs << 18;
   }
   { /* option args which have an initial value */
     /* this gen_values() won't produce VM code */
-    nargs = gen_values(scope, node->cons.cdr->cons.cdr->cons.car);
-    bbb += (uint32_t)nargs << 13;
+    gen_values(scope, node->cons.cdr->cons.cdr->cons.car, &result);
+    bbb += (uint32_t)result.nargs << 13;
   }
   { /* rest arg */
     Node *restarg = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
     if (restarg->cons.cdr->cons.car) bbb |= 0b1000000000000;
   }
   { /* m2args */
-    nargs = gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
-    bbb += (uint32_t)nargs << 7;
+    gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car, &result);
+    bbb += (uint32_t)result.nargs << 7;
   }
   /* tailargs */
   Node *args_tail = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
@@ -1591,19 +1610,20 @@ void gen_super(Scope *scope, Node *node)
 {
   Scope_push(scope);
   if (node->cons.cdr->cons.car) {
-    int nargs = gen_values(scope, node);
+    GenValuesResult result = {0};
+    gen_values(scope, node, &result);
     if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-      nargs--;
+      result.nargs--;
       scope->sp--;
       scope->sp--;
     } else {
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
     }
-    scope->sp -= nargs + 1;
+    scope->sp -= result.nargs + 1;
     Scope_pushCode(OP_SUPER);
     Scope_pushCode(scope->sp);
-    Scope_pushCode(nargs);
+    Scope_pushCode(result.nargs);
   } else {
     Scope_pushCode(OP_ARGARY);
     Scope_pushCode(scope->sp);
@@ -1616,11 +1636,11 @@ void gen_super(Scope *scope, Node *node)
 
 void gen_yield(Scope *scope, Node *node)
 {
-  int nargs = 0;
+  GenValuesResult result = {0};
   if (node->cons.cdr->cons.car) {
     Scope_push(scope);
-    nargs = gen_values(scope, node);
-    scope->sp -= nargs + 1;
+    gen_values(scope, node, &result);
+    scope->sp -= result.nargs + 1;
   }
   Scope_pushCode(OP_BLKPUSH);
   Scope_pushCode(scope->sp);
@@ -1628,10 +1648,10 @@ void gen_yield(Scope *scope, Node *node)
   Scope_pushCode(OP_SEND);
   Scope_pushCode(scope->sp);
   Scope_pushCode(Scope_newSym(scope, "call"));
-  if (nargs < 0) {
+  if (result.has_splat) {
     Scope_pushCode(127); //TODO ???????
   } else {
-    Scope_pushCode(nargs);
+    Scope_pushCode(result.nargs);
   }
 }
 
