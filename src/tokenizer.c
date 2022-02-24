@@ -409,21 +409,18 @@ retry:
     value[3] = '\0';
     if (strcmp(value, "===") == 0) {
       type = EQQ;
-      p->state = EXPR_BEG;
     } else if (strcmp(value, "<=>") == 0) {
       type = CMP;
-      p->state = EXPR_BEG;
     } else if (value[2] == '=') {
       type = OP_ASGN;
-      p->state = EXPR_BEG;
     } else if (value[2] == '.') {
       if (IS_BEG()) {
         type = BDOT3;
       } else {
         type = DOT3;
       }
-      p->state = EXPR_BEG;
     }
+    p->state = EXPR_BEG;
   } else if (p->state != EXPR_DOT && p->state != EXPR_FNAME && tokenizer_is_operator(&(self->line[self->pos]), 2)) {
     value[0] = self->line[self->pos];
     value[1] = self->line[self->pos + 1];
@@ -431,14 +428,18 @@ retry:
     switch (value[0]) {
       case '=':
         switch (value[1]) {
-          case '=': type = EQ; p->state = EXPR_BEG; break;
-          case '>': type = ASSOC; p->state = EXPR_BEG; break;
+          case '=': type = EQ; break;
+          case '>': type = ASSOC; break;
+          case '~': type = MATCH; break;
         }
+        p->state = EXPR_BEG;
         break;
       case '!':
         switch (value[1]) {
-          case '=': type = NEQ; p->state = EXPR_BEG; break;
+          case '=': type = NEQ; break;
+          case '~': type = NMATCH; break;
         }
+        p->state = EXPR_BEG;
         break;
       case '*':
         switch (value[1]) {

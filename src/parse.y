@@ -835,7 +835,7 @@
 %nonassoc DOT2 DOT3 BDOT2 BDOT3.
 %left OROP.
 %left ANDOP.
-%nonassoc CMP EQ EQQ NEQ.
+%nonassoc CMP EQ EQQ NEQ MATCH NMATCH.
 %left GT GEQ LT LEQ. // > >= < <=
 %left OR XOR.
 %left AND.
@@ -1214,6 +1214,8 @@ arg(A) ::= arg(B) LEQ arg(C). { A = call_bin_op(B, "<=", C); }
 arg(A) ::= arg(B) EQ arg(C). { A = call_bin_op(B, "==", C); }
 arg(A) ::= arg(B) EQQ arg(C). { A = call_bin_op(B, "===", C); }
 arg(A) ::= arg(B) NEQ arg(C). { A = call_bin_op(B, "!=", C); }
+arg(A) ::= arg(B) MATCH arg(C). { A = call_bin_op(B, "=~", C); }
+arg(A) ::= arg(B) NMATCH arg(C). { A = call_bin_op(B, "!~", C); }
 arg(A) ::= UNEG arg(B). { A = call_uni_op(p, B, "!"); }
 arg(A) ::= UNOT arg(B). { A = call_uni_op(p, B, "~"); }
 arg(A) ::= arg(B) LSHIFT arg(C). { A = call_bin_op(B, "<<", C); }
