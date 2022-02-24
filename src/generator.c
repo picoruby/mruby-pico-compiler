@@ -18,6 +18,9 @@ typedef struct {
   int nargs;
   int op_send;
   bool has_splat;
+  bool has_block;
+  bool has_block_arg;
+  bool is_super;
 } GenValuesResult;
 
 #define END_SECTION_SIZE 8
@@ -124,12 +127,11 @@ int count_args(Scope *scope, Node *node)
 
 void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
-  result->nargs = 0;
-  result->has_splat = false;
+  result->op_send = OP_SEND;
   uint8_t prev_gen_splat_status = scope->gen_splat_status;
   scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int splat_pos = 0;
-  Node *block_arg = NULL;
+  Node *block_node = NULL;
   Node *node = tree;
   while (node) {
     Node *node2;
@@ -147,11 +149,24 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
       if (node->cons.cdr && node->cons.cdr->cons.cdr) {
         if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
           result->nargs++;
-          FATALP("kw_hash");
         }
-        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
-          block_arg = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
-          FATALP("block");
+        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg){
+          block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
+          node->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
+          result->has_block_arg = true;
+        }
+        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
+          block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
+          node->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
+          result->has_block = true;
+        }
+        /* FIXME: in case like `p(*3){}` that only has one splat */
+        if (node->cons.cdr->cons.cdr->cons.cdr->cons.cdr) {
+          if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
+            block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
+            node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
+            result->has_block = true;
+          }
         }
       }
       break;
@@ -162,12 +177,21 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
         Node_atomType(node2->cons.car) == ATOM_splat) {
       splat_pos = result->nargs;
     }
-    if (node->cons.cdr->cons.cdr && node->cons.cdr->cons.cdr->cons.cdr) {
-      if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
+    if (node2 && node2->cons.cdr) {
+      if (Node_atomType(node2->cons.cdr->cons.car) == ATOM_kw_hash) {
         result->nargs++;
       }
-      if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
-          FATALP("block_2");
+      if (Node_atomType(node2->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+        block_node = node2->cons.cdr->cons.cdr->cons.car;
+        node2->cons.cdr->cons.cdr->cons.car = NULL;
+        result->has_block_arg = true;
+      }
+      if (node2->cons.cdr->cons.cdr->cons.cdr) {
+        if (Node_atomType(node2->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
+          block_node = node2->cons.cdr->cons.cdr->cons.cdr->cons.car;
+          node2->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
+          result->has_block = true;
+        }
       }
     }
     if (node->cons.cdr) {
@@ -189,9 +213,20 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
   scope->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) {
     result->has_splat = true;
-    result->op_send = OP_SENDV;
+    if (block_node) {
+      codegen(scope, block_node);
+      result->op_send = OP_SENDVB;
+    } else {
+      result->op_send = OP_SENDV;
+    }
+  } else {
+    if (block_node) {
+      if (result->is_super && result->has_block) Scope_push(scope);
+      if (result->is_super && result->has_block) scope->sp--;
+      codegen(scope, block_node);
+      result->op_send = OP_SENDB;
+    }
   }
-  result->op_send = OP_SEND;
 }
 
 void gen_str(Scope *scope, Node *node)
@@ -327,7 +362,7 @@ void gen_int(Scope *scope, Node *node, Misc is_neg)
 void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
 {
   GenValuesResult result = {0};
-  int op = OP_SEND;
+  result.op_send = OP_SEND;
   int reg = scope->sp;
   // receiver
   if (is_fcall) {
@@ -348,29 +383,8 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   }
   // args
   if (node->cons.cdr->cons.car) {
-    if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_block_arg) {
-      /* .call(&:method) */
-      scope->sp++;
-      codegen(scope, node->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr);
-      scope->sp--;
-      op = OP_SENDB;
-    } else {
-      Scope_push(scope);
-      gen_values(scope, node, &result);
-      if (result.has_splat) {
-        op = OP_SENDV;
-      } else if (result.nargs > 0 && // case: method_name(1) { puts "hello" }
-          node->cons.cdr->cons.car->cons.cdr->cons.cdr &&
-          Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-        op = OP_SENDB;
-        result.nargs--;
-      } else if (// case: method_name { puts "hello" }
-                 Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_block ) {
-        op = OP_SENDB;
-        result.nargs--;
-        scope->sp--;
-      }
-    }
+    Scope_push(scope);
+    gen_values(scope, node, &result);
   }
   const char *method_name = Node_literalName(node->cons.car->cons.cdr);
   scope->sp = reg;
@@ -395,11 +409,12 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     Scope_pushCode(OP_LE);
     Scope_pushCode(scope->sp);
   } else {
-    Scope_pushCode(op);
+    Scope_pushCode(result.op_send);
     Scope_pushCode(scope->sp);
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
-    if (op != OP_SENDV) Scope_pushCode(result.nargs);
+    if (result.op_send == OP_SEND || result.op_send == OP_SENDB)
+      Scope_pushCode(result.nargs);
   }
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
@@ -1347,13 +1362,14 @@ uint32_t setup_parameters(Scope *scope, Node *node)
 {
   if (Node_atomType(node) != ATOM_block_parameters) return 0;
   uint32_t bbb = 0;
-  GenValuesResult result = {0};
   { /* mandatory args */
+    GenValuesResult result = {0};
     gen_values(scope, node->cons.cdr->cons.car, &result);
     bbb = (uint32_t)result.nargs << 18;
   }
   { /* option args which have an initial value */
     /* this gen_values() won't produce VM code */
+    GenValuesResult result = {0};
     gen_values(scope, node->cons.cdr->cons.cdr->cons.car, &result);
     bbb += (uint32_t)result.nargs << 13;
   }
@@ -1362,6 +1378,7 @@ uint32_t setup_parameters(Scope *scope, Node *node)
     if (restarg->cons.cdr->cons.car) bbb |= 0b1000000000000;
   }
   { /* m2args */
+    GenValuesResult result = {0};
     gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car, &result);
     bbb += (uint32_t)result.nargs << 7;
   }
@@ -1606,31 +1623,36 @@ void gen_super_bb(Scope *scope)
   Scope_pushCode((uint8_t)(bb & 0xff));
 }
 
-void gen_super(Scope *scope, Node *node)
+void gen_super(Scope *scope, Node *node, bool zsuper)
 {
   Scope_push(scope);
-  if (node->cons.cdr->cons.car) {
-    GenValuesResult result = {0};
-    gen_values(scope, node, &result);
-    if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-      result.nargs--;
-      scope->sp--;
-      scope->sp--;
-    } else {
-      Scope_pushCode(OP_LOADNIL);
-      Scope_pushCode(scope->sp);
-    }
-    scope->sp -= result.nargs + 1;
-    Scope_pushCode(OP_SUPER);
+  Scope_pushCode(OP_ARGARY);
+  Scope_pushCode(scope->sp);
+  gen_super_bb(scope);
+  GenValuesResult result = {0};
+  result.is_super = true;
+  gen_values(scope, node, &result);
+  if (!result.has_block && !result.has_block_arg && !zsuper) {
+    Scope_pushCode(OP_LOADNIL);
     Scope_pushCode(scope->sp);
+  }
+  if (!result.has_splat) {
+    scope->sp -= result.nargs;
+  } else {
+    scope->sp--;
+  }
+  Scope_pushCode(OP_SUPER);
+  if (result.has_block) {
+    --scope->sp;
+    Scope_pushCode(--scope->sp);
     Scope_pushCode(result.nargs);
   } else {
-    Scope_pushCode(OP_ARGARY);
-    Scope_pushCode(scope->sp);
-    gen_super_bb(scope);
-    Scope_pushCode(OP_SUPER);
     Scope_pushCode(--scope->sp);
-    Scope_pushCode(127);
+    if (result.has_splat || zsuper) {
+      Scope_pushCode(127);
+    } else {
+      Scope_pushCode(result.nargs);
+    }
   }
 }
 
@@ -1877,7 +1899,6 @@ void codegen(Scope *scope, Node *tree)
       codegen(scope, tree->cons.cdr);
       break;
     case ATOM_block_arg:
-      Scope_push(scope);
       codegen(scope, tree->cons.cdr);
       break;
     case ATOM_def:
@@ -1909,8 +1930,10 @@ void codegen(Scope *scope, Node *tree)
       gen_colon3(scope, tree->cons.cdr);
       break;
     case ATOM_super:
+      gen_super(scope, tree, false);
+      break;
     case ATOM_zsuper:
-      gen_super(scope, tree);
+      gen_super(scope, tree, true);
       break;
     case ATOM_lambda:
       gen_lambda(scope, tree);

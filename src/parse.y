@@ -424,30 +424,69 @@
   }
 
   static void
+  args_with_block(ParserState *p, Node *a, Node *b)
+  {
+    if (!b) return;
+    Node *args_add;
+    if (Node_atomType(a->cons.cdr->cons.cdr->cons.car) == ATOM_args_add) {
+      /* fcall */
+      args_add = a->cons.cdr->cons.cdr->cons.car;
+    } else if (Node_atomType(a->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_args_add) {
+      /* call */
+      args_add = a->cons.cdr->cons.cdr->cons.cdr->cons.car;
+    } else {
+      FATALP("This should not happen");
+    }
+    if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+      //yyerror(p, "both block arg and actual block given");
+      ERRORP("both block arg and actual block given");
+    } else {
+      a = push(args_add, b);
+    }
+  }
+
+  static void
+  args_with_block_super(ParserState *p, Node *a, Node *b)
+  {
+    if (!b) return;
+    Node *args_add;
+    if (Node_atomType(a->cons.cdr->cons.car) == ATOM_args_add) {
+      /* fcall */
+      args_add = a->cons.cdr->cons.car;
+    } else if (Node_atomType(a->cons.cdr->cons.cdr->cons.car) == ATOM_args_add) {
+      /* call */
+      args_add = a->cons.cdr->cons.cdr->cons.car;
+    } else {
+      FATALP("This should not happen");
+    }
+    if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+      //yyerror(p, "both block arg and actual block given");
+      ERRORP("both block arg and actual block given");
+    } else {
+      a = push(args_add, b);
+    }
+  }
+
+  static void
   call_with_block(ParserState *p, Node *a, Node *b)
   {
     Node *n;
     switch (Node_atomType(a)) {
     case ATOM_super:
     case ATOM_zsuper:
-      if (!a->cons.cdr->cons.car) {
-        a->cons.cdr->cons.car = new_first_arg(p, b);
+      if (a->cons.cdr && !a->cons.cdr->cons.car) {
+        a->cons.cdr->cons.car = new_callargs(p, 0, 0, b);
       } else {
-        a->cons.cdr->cons.car = list3(atom(ATOM_args_add), a->cons.cdr->cons.car, b);
+        args_with_block_super(p, a, b);
       }
       break;
     case ATOM_call:
     case ATOM_fcall:
-      /* TODO: Ambiguous node structure should be tidied up */
-      if (a->cons.cdr->cons.cdr->cons.cdr) {
-        n = a->cons.cdr->cons.cdr->cons.cdr;
+      n = a->cons.cdr->cons.cdr;
+      if (n->cons.cdr && !n->cons.cdr->cons.car) {
+        n->cons.cdr->cons.car = new_callargs(p, 0, 0, b);
       } else {
-        n = a->cons.cdr->cons.cdr;
-      }
-      if (!n->cons.car) {
-        n->cons.car = new_first_arg(p, b);
-      } else {
-        n->cons.car = list3(atom(ATOM_args_add), n->cons.car, b);
+        args_with_block(p, a, b);
       }
       break;
     default:
@@ -1111,7 +1150,10 @@ args(A) ::= arg(B).
               {
                 A = new_first_arg(p, B);
               }
-args(A) ::= STAR arg(B). { A = new_first_arg(p, new_splat(p, B)); }
+args(A) ::= STAR arg(B).
+            {
+              A = new_first_arg(p, new_splat(p, B));
+            }
 args(A) ::= args(B) comma arg(C). {
               A = list3(atom(ATOM_args_add), B, C);
             }
@@ -1245,7 +1287,8 @@ primary(A)  ::= KW_yield opt_paren_args(B). { A = new_yield(p, B); }
 primary(A)  ::= KW_not LPAREN_EXPR expr(B) rparen. { A = call_uni_op(p, B, "!"); }
 primary(A)  ::= KW_not LPAREN_EXPR rparen. { A = call_uni_op(p, new_nil(p), "!"); }
 primary(A)  ::= operation(B) brace_block(C). {
-                  A = new_fcall(p, B, list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), C)));
+                  //A = new_fcall(p, B, list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), C)));
+                  A = new_fcall(p, B, new_callargs(p, 0, 0, C));
                 }
 primary     ::= method_call.
 primary(A)  ::= method_call(B) brace_block(C). {
@@ -1690,9 +1733,9 @@ call_args(A) ::= args(B) comma assocs(C) opt_block_arg(D).
                 {
                   A = new_callargs(p, B, new_kw_hash(p, C), D);
                 }
-call_args(A) ::= block_arg(B).
+call_args(A) ::= block_arg(D).
                 {
-                  A = list2(atom(ATOM_args_add), B);
+                  A = new_callargs(p, 0, 0, D);
                 }
 
 case_body(A) ::= KW_when args(B) then
