@@ -103,6 +103,10 @@ typedef enum atom_type {
   ATOM_zsuper,
   ATOM_lambda,
   ATOM_keyword_rest_args,
+  ATOM_rescue,
+  ATOM_another_rescue,
+  ATOM_ensure,
+  ATOM_retry,
 } AtomType;
 
 typedef enum {

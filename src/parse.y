@@ -809,6 +809,25 @@
   {
     p->scope = p->scope->upper;
   }
+
+  static Node*
+  new_rescue(ParserState *p, Node *body, Node* resq, Node* els)
+  {
+    return push(append(list2(atom(ATOM_rescue), body), resq), els);
+  }
+
+  static Node*
+  new_mod_rescue(ParserState *p, Node *body, Node* resq)
+  {
+    return new_rescue(p, body, list1(list3(0, 0, resq)), 0);
+//    return new_rescue(p, body, resq, 0);
+  }
+
+  static Node*
+  new_ensure(ParserState *p, Node *a, Node *b)
+  {
+    return list3(atom(ATOM_ensure), a, b);
+  }
 }
 
 %parse_accept {
@@ -831,6 +850,7 @@
 %left KW_or KW_and.
 %right KW_not.
 %right E OP_ASGN.
+%left KW_modifier_rescue.
 %right QUESTION COLON LABEL_TAG.
 %nonassoc DOT2 DOT3 BDOT2 BDOT3.
 %left OROP.
@@ -859,7 +879,30 @@ top_stmts(A) ::= top_stmts(B) terms top_stmt(C).
 
 top_stmt ::= stmt.
 
-bodystmt ::= compstmt.
+bodystmt(A) ::= compstmt(B)
+                opt_rescue(C)
+                opt_else(D)
+                opt_ensure(E).
+                {
+                  if (C) {
+                    A = new_rescue(p, B, C, D);
+                  }
+                  else if (D) {
+                    //yywarning(p, "else without rescue is useless");
+                    A = (B, D);
+                  }
+                  else {
+                    A = B;
+                  }
+                  if (E) {
+                    if (A) {
+                      A = new_ensure(p, A, E);
+                    }
+                    else {
+                      A = push(E, new_nil(p));
+                    }
+                  }
+                }
 
 compstmt(A) ::= stmts(B) opt_terms. { A = B; }
 
@@ -891,6 +934,10 @@ stmt(A) ::= stmt(B) KW_modifier_while expr_value(C). {
 stmt(A) ::= stmt(B) KW_modifier_until expr_value(C). {
               A = new_until(p, C, B);
             }
+stmt(A) ::= stmt(B) KW_modifier_rescue stmt(C).
+              {
+                A = new_mod_rescue(p, B, C);
+              }
 stmt ::= command_asgn.
 stmt(A) ::= mlhs(B) E command_call(C).
               {
@@ -927,6 +974,12 @@ command_asgn(A) ::= defn_head(B) f_opt_arglist_paren(C) E command(D).
                   scope_unnest(p);
                   p->in_def--;
                 }
+command_asgn(A) ::= defn_head(B) f_opt_arglist_paren(C) E command(D) KW_modifier_rescue arg(E).
+                {
+                  A = defn_setup(p, B, C, new_mod_rescue(p, D, E));
+                  scope_unnest(p);
+                  p->in_def--;
+                }
 command_asgn(A) ::= defs_head(B) f_opt_arglist_paren(C) E command(D).
                 {
                   A = defs_setup(p, B, C, D);
@@ -934,8 +987,19 @@ command_asgn(A) ::= defs_head(B) f_opt_arglist_paren(C) E command(D).
                   p->in_def--;
                   p->in_single--;
                 }
-command_rhs ::= command_call. [OP_ASGN]
-command_rhs ::= command_asgn.
+command_asgn(A) ::= defs_head(B) f_opt_arglist_paren(C) E command(D) KW_modifier_rescue arg(E).
+                {
+                  A = defs_setup(p, B, C, new_mod_rescue(p, D, E));
+                  scope_unnest(p);
+                  p->in_def--;
+                  p->in_single--;
+                }
+command_rhs    ::= command_call. [OP_ASGN]
+command_rhs(A) ::= command_call(B) KW_modifier_rescue stmt(C).
+                {
+                  A = new_mod_rescue(p, B, C);
+                }
+command_rhs    ::= command_asgn.
 
 expr ::= command_call.
 expr(A) ::= expr(B) KW_and expr(C). { A = new_and(p, B, C); }
@@ -1228,8 +1292,19 @@ arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D). {
                   scope_unnest(p);
                   p->in_def--;
                 }
+arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E). {
+                  A = defn_setup(p, B, C, new_mod_rescue(p, D, E));
+                  scope_unnest(p);
+                  p->in_def--;
+                }
 arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D). {
                   A = defs_setup(p, B, C, D);
+                  scope_unnest(p);
+                  p->in_def--;
+                  p->in_single--;
+                }
+arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E). {
+                  A = defs_setup(p, B, C, new_mod_rescue(p, D, E));
                   scope_unnest(p);
                   p->in_def--;
                   p->in_single--;
@@ -1240,7 +1315,11 @@ f_opt_arglist_paren ::= none.
 
 arg ::= primary.
 
-arg_rhs ::= arg. [OP_ASGN]
+arg_rhs    ::= arg. [OP_ASGN]
+arg_rhs(A) ::= arg(B) KW_modifier_rescue arg(C).
+                {
+                  A = new_mod_rescue(p, B, C);
+                }
 
 lhs ::= variable.
 lhs(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
@@ -1409,6 +1488,9 @@ primary(A) ::=  KW_next. {
                 }
 primary(A) ::=  KW_redo. {
                   A = list1(atom(ATOM_redo));
+                }
+primary(A) ::=  KW_retry. {
+                  A = list1(atom(ATOM_retry));
                 }
 
 primary_value(A) ::= primary(B). { A = B; }
@@ -1758,6 +1840,34 @@ cases(A) ::= opt_else(B). {
                }
              }
 cases ::= case_body.
+
+opt_rescue(A) ::= KW_rescue exc_list(B) exc_var(C) then
+                  compstmt(D)
+                  opt_rescue(E).
+                {
+                  A = list3(B, C, D);
+                  if (E) A = push(A, cons(atom(ATOM_another_rescue), E));
+                }
+opt_rescue ::= none.
+
+exc_list(A) ::= arg(B).
+                {
+                  A = new_first_arg(p, B);
+                }
+exc_list    ::= mrhs.
+exc_list    ::= none.
+
+exc_var(A) ::= ASSOC lhs(B).
+                {
+                  A = B;
+                }
+exc_var    ::= none.
+
+opt_ensure(A) ::= KW_ensure compstmt(B).
+                {
+                  A = B;
+                }
+opt_ensure    ::= none.
 
 f_norm_arg(A) ::= IDENTIFIER(B). {
                     local_add_f(p, B);
@@ -2154,7 +2264,13 @@ none(A) ::= . { A = 0; }
   }
 
   void showNode1(Node *n, bool isCar, int indent, bool isRightMost) {
+    static int lb = 0;
     if (n == NULL) {
+      if (lb > 0) {
+        printf("\n");
+        lb = 0;
+        for (int i=0; i<indent; i++) printf("  ");
+      }
       printf(" _");
       return;
     }
@@ -2162,12 +2278,12 @@ none(A) ::= . { A = 0; }
       case CONS:
         if (isCar) {
           printf("\n");
-          for (int i=0; i<indent; i++) {
-            printf("  ");
-          }
+          lb = 0;
+          for (int i=0; i<indent; i++) printf("  ");
           printf("[");
         } else {
           printf(",");
+          lb++;
         }
         if (n->cons.car && n->cons.car->type != CONS && n->cons.cdr == NULL) {
           isRightMost = true;
