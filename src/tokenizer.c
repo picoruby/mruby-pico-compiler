@@ -571,7 +571,7 @@ retry:
       if (value[strlen(value) - 1] == '\n') value[strlen(value) - 1] = '\0'; /* eliminate \n */
       type = COMMENT;
     } else if (self->line[self->pos] == ' ' || self->line[self->pos] == '\t') {
-      Regex_match3(&(self->line[self->pos]), "^(\\s+)", regexResult);
+      Regex_match3(&(self->line[self->pos]), "^([ \t]+)", regexResult);
       strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
       type = ON_SP;
     } else if (tokenizer_is_semicolon(self->line[self->pos])) {
@@ -973,7 +973,7 @@ retry:
         case KW_rescue:
           if (!IS_BEG())
             type = KW_modifier_rescue;
-          p->state = EXPR_BEG;
+          p->state = EXPR_MID;
           break;
         case KW_if:
           if (p->state != EXPR_BEG && p->state != EXPR_VALUE)
