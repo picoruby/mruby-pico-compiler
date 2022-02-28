@@ -819,8 +819,7 @@
   static Node*
   new_mod_rescue(ParserState *p, Node *body, Node* resq)
   {
-    return new_rescue(p, body, list1(list3(0, 0, resq)), 0);
-//    return new_rescue(p, body, resq, 0);
+    return new_rescue(p, body, list3(0, 0, resq), 0);
   }
 
   static Node*

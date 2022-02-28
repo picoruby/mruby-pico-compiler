@@ -970,6 +970,11 @@ retry:
             p->state = EXPR_ARG;
           }
           break;
+        case KW_rescue:
+          if (!IS_BEG())
+            type = KW_modifier_rescue;
+          p->state = EXPR_ARG;
+          break;
         case KW_if:
           if (p->state != EXPR_BEG && p->state != EXPR_VALUE)
             type = KW_modifier_if;
@@ -1007,7 +1012,6 @@ retry:
         case KW_return:
         case KW_break:
         case KW_next:
-//        case KW_rescue:
           p->state = EXPR_MID;
           break;
         case KW_def:
