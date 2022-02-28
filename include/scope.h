@@ -90,6 +90,13 @@ typedef struct backpatch
   struct backpatch *next;
 } Backpatch;
 
+typedef struct exception_handler ExcHandler;
+typedef struct exception_handler
+{
+  uint8_t table[13];
+  ExcHandler *next;
+} ExcHandler;
+
 typedef struct scope Scope;
 typedef struct scope
 {
@@ -110,7 +117,7 @@ typedef struct scope
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
   unsigned int max_sp;
-  int32_t vm_code_size;
+  uint32_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
   AssignSymbol *last_assign_symbol;
@@ -119,6 +126,7 @@ typedef struct scope
   uint8_t gen_splat_status;
   uint8_t gen_array_status;
   uint8_t gen_array_count;
+  ExcHandler *exc_handler;
 } Scope;
 
 #define GEN_SPLAT_STATUS_NONE              0b00000000

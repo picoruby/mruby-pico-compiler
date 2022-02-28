@@ -111,14 +111,14 @@ Dump_codeDump(uint8_t *irep)
       printf("OP_LOADI\tR%d\t-%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
-//    CASE(OP_LOADI16, BS);
-//      printf("OP_LOADI16\tR%d\t%d\t", a, (int)(int16_t)b);
-//      print_lv_a(mrb, irep, a);
-//      break;
-//    CASE(OP_LOADI32, BSS);
-//      printf("OP_LOADI32\tR%d\t%d\t", a, (int32_t)(((uint32_t)b<<16)+c));
-//      print_lv_a(mrb, irep, a);
-//      break;
+    CASE(OP_LOADI16, BS);
+      printf("OP_LOADI16\tR%d\t%d\t", a, (int)(int16_t)b);
+      print_lv_a(mrb, irep, a);
+      break;
+    CASE(OP_LOADI32, BSS);
+      printf("OP_LOADI32\tR%d\t%d\t", a, (int32_t)(((uint32_t)b<<16)+c));
+      print_lv_a(mrb, irep, a);
+      break;
     CASE(OP_LOADI__1, B);
       printf("OP_LOADI__1\tR%d\t\t", a);
       print_lv_a(mrb, irep, a);
@@ -477,10 +477,10 @@ Dump_codeDump(uint8_t *irep)
       printf("OP_RESCUE\tR%d\tR%d", a, b);
       print_lv_ab(mrb, irep, a, b);
       break;
-//    CASE(OP_RAISEIF, B);
-//      printf("OP_RAISEIF\tR%d\t\t", a);
-//      print_lv_a(mrb, irep, a);
-//      break;
+    CASE(OP_RAISEIF, B);
+      printf("OP_RAISEIF\tR%d\t\t", a);
+      print_lv_a(mrb, irep, a);
+      break;
 
     CASE(OP_DEBUG, BBB);
       printf("OP_DEBUG\t%d\t%d\t%d\n", a, b, c);

@@ -1691,6 +1691,68 @@ void gen_return(Scope *scope, Node *node)
   Scope_pushCode(scope->sp);
 }
 
+void write_exc_handler(uint8_t *record, uint32_t value)
+{
+  record[0] = (value & 0xFF000000) >> 24;
+  record[1] = (value & 0xFF0000) >> 16;
+  record[2] = (value & 0xFF) >> 8;
+  record[3] =  value & 0xFF;
+}
+
+void gen_rescue(Scope *scope, Node *node)
+{
+  ExcHandler *exc_handler = picorbc_alloc(sizeof(ExcHandler));
+  exc_handler->next = NULL;
+  exc_handler->table[0] = '\0';
+  if (scope->exc_handler == NULL) {
+    scope->exc_handler = exc_handler;
+  } else {
+    ExcHandler *tmp;
+    for (tmp = scope->exc_handler; tmp->next != NULL; tmp = tmp->next);
+    tmp->next = exc_handler;
+  }
+  write_exc_handler(&exc_handler->table[1], scope->vm_code_size);
+  int pc = scope->vm_code_size;
+  codegen(scope, node->cons.cdr->cons.car);
+  if (pc == scope->vm_code_size) {
+    Scope_pushCode(OP_LOADNIL);
+    Scope_pushCode(scope->sp);
+  }
+  write_exc_handler(&exc_handler->table[5], scope->vm_code_size);
+  Scope_pushCode(OP_JMP);
+  JmpLabel *label_bottom = Scope_reserveJmpLabel(scope);
+  write_exc_handler(&exc_handler->table[9], scope->vm_code_size);
+  Scope_pushCode(OP_EXCEPT);
+  Scope_pushCode(scope->sp);
+  Scope_push(scope);
+  Scope_pushCode(OP_GETCONST);
+  Scope_pushCode(scope->sp);
+  int num = Scope_newSym(scope, "StandardError");
+  Scope_pushCode(num);
+  Scope_pushCode(OP_RESCUE);
+  Scope_pushCode(scope->sp - 1);
+  Scope_pushCode(scope->sp);
+  Scope_pushCode(OP_JMPIF);
+  Scope_pushCode(scope->sp--);
+  JmpLabel *label_rescue = Scope_reserveJmpLabel(scope);
+  Scope_pushCode(OP_JMP);
+  JmpLabel *label_rescue_missed = Scope_reserveJmpLabel(scope);
+  Scope_backpatchJmpLabel(label_rescue, scope->vm_code_size);
+  pc = scope->vm_code_size;
+  codegen(scope, node->cons.cdr->cons.cdr);
+  if (pc == scope->vm_code_size) {
+    Scope_pushCode(OP_LOADNIL);
+    Scope_pushCode(scope->sp);
+  }
+  Scope_pushCode(OP_JMP);
+  JmpLabel *label_bottom_2 = Scope_reserveJmpLabel(scope);
+  Scope_backpatchJmpLabel(label_rescue_missed, scope->vm_code_size);
+  Scope_pushCode(OP_RAISEIF);
+  Scope_pushCode(scope->sp);
+  Scope_backpatchJmpLabel(label_bottom, scope->vm_code_size);
+  Scope_backpatchJmpLabel(label_bottom_2, scope->vm_code_size);
+}
+
 void codegen(Scope *scope, Node *tree)
 {
   int num;
@@ -1937,6 +1999,9 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_lambda:
       gen_lambda(scope, tree);
+      break;
+    case ATOM_rescue:
+      gen_rescue(scope, tree);
       break;
     default:
       // FIXME: `Unkown OP code: 2e`

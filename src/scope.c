@@ -56,6 +56,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->backpatch = NULL;
   self->irep_parameters = 0;
   self->nargs_before_splat = 0;
+  self->exc_handler = NULL;
   return self;
 }
 
@@ -352,6 +353,14 @@ size_t replace_picoruby_null(char *value)
 
 void Scope_finish(Scope *scope)
 {
+  ExcHandler *tmp;
+  ExcHandler *exc_handler = scope->exc_handler;
+  while (exc_handler) {
+    Scope_pushNCode_self(scope, exc_handler, 13);
+    tmp = exc_handler;
+    exc_handler = exc_handler->next;
+    picorbc_free(tmp);
+  }
   int op_size = scope->vm_code_size;
   int count;
   int len;
