@@ -256,7 +256,6 @@
   new_first_arg(ParserState *p, Node *arg)
   {
     return list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), arg));
-    //return list2(atom(ATOM_args_new), arg);
   }
 
   static Node*
@@ -823,6 +822,13 @@
   }
 
   static Node*
+  new_exc_var(ParserState *p, Node *a)
+  {
+    if (Node_atomType(a) == ATOM_lvar) generate_lvar(p->scope, a);
+    return a;
+  }
+
+  static Node*
   new_ensure(ParserState *p, Node *a, Node *b)
   {
     return list3(atom(ATOM_ensure), a, b);
@@ -1322,8 +1328,13 @@ arg_rhs(A) ::= arg(B) KW_modifier_rescue arg(C).
 
 lhs ::= variable.
 lhs(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
-  { A = new_call(p, B, STRING_ARY, C, '.'); }
-lhs(A) ::= primary_value(B) call_op(C) IDENTIFIER(D). { A = new_call(p, B, D, 0, C); }
+                {
+                  A = new_call(p, B, STRING_ARY, C, '.');
+                }
+lhs(A) ::= primary_value(B) call_op(C) IDENTIFIER(D).
+                {
+                  A = new_call(p, B, D, 0, C);
+                }
 
 cname ::= CONSTANT.
 
@@ -1844,8 +1855,13 @@ opt_rescue(A) ::= KW_rescue exc_list(B) exc_var(C) then
                   compstmt(D)
                   opt_rescue(E).
                 {
-                  A = list3(B, C, D);
-                  if (E) A = push(A, cons(atom(ATOM_another_rescue), E));
+                  if (!B) B = new_first_arg(p, new_const(p, "StandardError"));
+                  A = list3(
+                    list2(atom(ATOM_exc_list), B),
+                    list2(atom(ATOM_exc_var), C),
+                    D
+                  );
+                  if (E) A = append(A, E);
                 }
 opt_rescue ::= none.
 
@@ -1858,7 +1874,7 @@ exc_list    ::= none.
 
 exc_var(A) ::= ASSOC lhs(B).
                 {
-                  A = B;
+                  A = new_exc_var(p, B);
                 }
 exc_var    ::= none.
 

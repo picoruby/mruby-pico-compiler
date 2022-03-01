@@ -117,7 +117,7 @@ typedef struct scope
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
   unsigned int max_sp;
-  uint32_t vm_code_size;
+  uint16_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
   AssignSymbol *last_assign_symbol;
@@ -168,7 +168,7 @@ void Scope_freeCodePool(Scope *self);
 
 JmpLabel *Scope_reserveJmpLabel(Scope *self);
 
-void Scope_backpatchJmpLabel(JmpLabel *label, int32_t position);
+void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position);
 
 void Scope_pushBreakStack(Scope *self);
 

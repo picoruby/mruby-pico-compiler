@@ -115,7 +115,7 @@ int count_args(Scope *scope, Node *node)
   int total_nargs = 0;
   while (node) {
     if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) break;
-    total_nargs++;
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_add) total_nargs++;
     if (hasCdr(node)) {
       node = node->cons.cdr->cons.car;
     } else {
@@ -1175,7 +1175,7 @@ void gen_case(Scope *scope, Node *node)
       Scope_backpatchJmpLabel(label_true_array[j], scope->vm_code_size);
     { /* inside when */
       scope->sp = cond_reg;
-      int32_t current_vm_code_size = scope->vm_code_size;
+      int16_t current_vm_code_size = scope->vm_code_size;
       /* stmts_add */
       codegen(scope, a_case->cons.cdr->cons.cdr->cons.car);
       /* if code was empty */
@@ -1699,11 +1699,11 @@ void write_exc_handler(uint8_t *record, uint32_t value)
   record[3] =  value & 0xFF;
 }
 
-void gen_rescue(Scope *scope, Node *node)
+ExcHandler *new_exc_handler(Scope *scope, uint8_t type)
 {
   ExcHandler *exc_handler = picorbc_alloc(sizeof(ExcHandler));
   exc_handler->next = NULL;
-  exc_handler->table[0] = '\0';
+  exc_handler->table[0] = type;
   if (scope->exc_handler == NULL) {
     scope->exc_handler = exc_handler;
   } else {
@@ -1711,8 +1711,105 @@ void gen_rescue(Scope *scope, Node *node)
     for (tmp = scope->exc_handler; tmp->next != NULL; tmp = tmp->next);
     tmp->next = exc_handler;
   }
+  return exc_handler;
+}
+
+void gen_ensure(Scope *scope, Node *node)
+{
+  ExcHandler *exc_handler = new_exc_handler(scope, 1);
+  write_exc_handler(&exc_handler->table[1], scope->vm_code_size);
+  codegen(scope, node->cons.cdr->cons.car);
+  write_exc_handler(&exc_handler->table[5], scope->vm_code_size);
+  write_exc_handler(&exc_handler->table[9], scope->vm_code_size);
+  Scope_push(scope);
+  Scope_push(scope);
+  Scope_pushCode(OP_EXCEPT);
+  Scope_pushCode(scope->sp);
+  Scope_push(scope);
+  codegen(scope, node->cons.cdr->cons.cdr);
+  scope->sp--;
+  Scope_pushCode(OP_RAISEIF);
+  Scope_pushCode(scope->sp);
+  scope->sp--;
+  scope->sp--;
+}
+
+JmpLabel *gen_another_rescue(Scope *scope, Node *node)
+{
+  /* prepare exc_list */
+  int nexc = count_args(scope, node->cons.car);
+  JmpLabel **labels_rescue = (JmpLabel **)picorbc_alloc(sizeof(JmpLabel*) * nexc);
+  { /* exc_list */
+    Node *tmp, *tmp2;
+    for (int i = 0; i < nexc;  i++) {
+      tmp = node->cons.car;
+      for (int j = nexc; i < j; j--) tmp = tmp->cons.cdr->cons.car;
+      bool splat = false;
+      if (Node_atomType(tmp->cons.cdr->cons.car) == ATOM_args_new) {
+        if (Node_atomType(tmp->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_splat) {
+          splat = true;
+          tmp = tmp->cons.cdr->cons.car;
+        }
+        tmp2 = NULL;
+      } else {
+        tmp2 = tmp->cons.cdr->cons.car;
+        tmp->cons.cdr->cons.car = NULL;
+        if (Node_atomType(tmp->cons.cdr->cons.cdr->cons.car) == ATOM_splat) {
+          splat = true;
+          tmp = tmp->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car;
+        }
+      }
+      if (splat) {
+        codegen(scope, tmp->cons.cdr->cons.car->cons.cdr);
+        Scope_pushCode(OP_MOVE);
+        Scope_pushCode(scope->sp + 1);
+        Scope_pushCode(scope->sp - 1);
+        Scope_pushCode(OP_SEND);
+        Scope_pushCode(scope->sp);
+        Scope_pushCode(Scope_newSym(scope, "__case_eqq"));
+        Scope_pushCode(1);
+      } else {
+        codegen(scope, tmp);
+        Scope_pushCode(OP_RESCUE);
+        Scope_pushCode(--scope->sp - 1);
+        Scope_pushCode(scope->sp);
+      }
+      tmp->cons.cdr->cons.car = tmp2;
+      Scope_pushCode(OP_JMPIF);
+      Scope_pushCode(scope->sp);
+      labels_rescue[i] = Scope_reserveJmpLabel(scope);
+    }
+    scope->sp--;
+  }
+  Scope_pushCode(OP_JMP);
+  JmpLabel *label_rescue_missed = Scope_reserveJmpLabel(scope);
+  for (int i = 0; i < nexc; i++)
+    Scope_backpatchJmpLabel(labels_rescue[i], scope->vm_code_size);
+  /* free */
+  picorbc_free(labels_rescue);
+  { /* exc_var */
+    if (node->cons.cdr->cons.car->cons.cdr->cons.car)
+    gen_assign(scope, node->cons.cdr->cons.car->cons.cdr, scope->sp);
+  }
+  /* rescue */
+  int pc = scope->vm_code_size;
+  codegen(scope, node->cons.cdr->cons.cdr->cons.car);
+  if (pc == scope->vm_code_size) {
+    Scope_pushCode(OP_LOADNIL);
+    Scope_pushCode(scope->sp);
+  }
+  Scope_pushCode(OP_JMP);
+  JmpLabel *label_else = Scope_reserveJmpLabel(scope);
+  Scope_backpatchJmpLabel(label_rescue_missed, scope->vm_code_size);
+  return label_else;
+}
+
+void gen_rescue(Scope *scope, Node *node)
+{
+  ExcHandler *exc_handler = new_exc_handler(scope, 0);
   write_exc_handler(&exc_handler->table[1], scope->vm_code_size);
   int pc = scope->vm_code_size;
+  /* main stmt */
   codegen(scope, node->cons.cdr->cons.car);
   if (pc == scope->vm_code_size) {
     Scope_pushCode(OP_LOADNIL);
@@ -1725,32 +1822,28 @@ void gen_rescue(Scope *scope, Node *node)
   Scope_pushCode(OP_EXCEPT);
   Scope_pushCode(scope->sp);
   Scope_push(scope);
-  Scope_pushCode(OP_GETCONST);
-  Scope_pushCode(scope->sp);
-  int num = Scope_newSym(scope, "StandardError");
-  Scope_pushCode(num);
-  Scope_pushCode(OP_RESCUE);
-  Scope_pushCode(scope->sp - 1);
-  Scope_pushCode(scope->sp);
-  Scope_pushCode(OP_JMPIF);
-  Scope_pushCode(scope->sp--);
-  JmpLabel *label_rescue = Scope_reserveJmpLabel(scope);
-  Scope_pushCode(OP_JMP);
-  JmpLabel *label_rescue_missed = Scope_reserveJmpLabel(scope);
-  Scope_backpatchJmpLabel(label_rescue, scope->vm_code_size);
-  pc = scope->vm_code_size;
-  codegen(scope, node->cons.cdr->cons.cdr);
-  if (pc == scope->vm_code_size) {
-    Scope_pushCode(OP_LOADNIL);
-    Scope_pushCode(scope->sp);
+  /* rescue */
+  Node *node_rescue = node->cons.cdr->cons.cdr;
+  int nrescue = 0;
+  while (Node_atomType(node_rescue->cons.car) == ATOM_exc_list) {
+    nrescue++;
+    node_rescue = node_rescue->cons.cdr->cons.cdr->cons.cdr;
   }
-  Scope_pushCode(OP_JMP);
-  JmpLabel *label_bottom_2 = Scope_reserveJmpLabel(scope);
-  Scope_backpatchJmpLabel(label_rescue_missed, scope->vm_code_size);
+  JmpLabel *labels_else[nrescue];
+  node_rescue = node->cons.cdr->cons.cdr;
+  for (int i = 0; i < nrescue; i++) {
+    labels_else[i] = gen_another_rescue(scope, node_rescue);
+    Scope_push(scope);
+    node_rescue = node_rescue->cons.cdr->cons.cdr->cons.cdr;
+  }
+  scope->sp--;
   Scope_pushCode(OP_RAISEIF);
   Scope_pushCode(scope->sp);
   Scope_backpatchJmpLabel(label_bottom, scope->vm_code_size);
-  Scope_backpatchJmpLabel(label_bottom_2, scope->vm_code_size);
+  /* else */
+  codegen(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
+  for (int i = 0; i < nrescue; i++)
+    Scope_backpatchJmpLabel(labels_else[i], scope->vm_code_size);
 }
 
 void codegen(Scope *scope, Node *tree)
@@ -1999,6 +2092,9 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_lambda:
       gen_lambda(scope, tree);
+      break;
+    case ATOM_ensure:
+      gen_ensure(scope, tree);
       break;
     case ATOM_rescue:
       gen_rescue(scope, tree);

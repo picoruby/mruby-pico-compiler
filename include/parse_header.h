@@ -104,6 +104,8 @@ typedef enum atom_type {
   ATOM_lambda,
   ATOM_keyword_rest_args,
   ATOM_rescue,
+  ATOM_exc_list,
+  ATOM_exc_var,
   ATOM_another_rescue,
   ATOM_ensure,
   ATOM_retry,

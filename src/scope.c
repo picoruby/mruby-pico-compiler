@@ -355,13 +355,15 @@ void Scope_finish(Scope *scope)
 {
   ExcHandler *tmp;
   ExcHandler *exc_handler = scope->exc_handler;
+  uint16_t op_size = scope->vm_code_size;
+  uint16_t handler_size = 0;
   while (exc_handler) {
-    Scope_pushNCode_self(scope, exc_handler, 13);
+    handler_size++;
+    Scope_pushNCode_self(scope, exc_handler->table, 13);
     tmp = exc_handler;
     exc_handler = exc_handler->next;
     picorbc_free(tmp);
   }
-  int op_size = scope->vm_code_size;
   int count;
   int len;
   uint8_t *data = scope->first_code_pool->data;
@@ -426,10 +428,10 @@ void Scope_finish(Scope *scope)
   l = scope->nlowers;
   data[8] = (l >> 8) & 0xff;
   data[9] = l & 0xff;
-  data[10] = (op_size >> 24) & 0xff;
-  data[11] = (op_size >> 16) & 0xff;
+  data[10] = (handler_size >> 8) & 0xff;
+  data[11] =  handler_size & 0xff;
   data[12] = (op_size >> 8) & 0xff;
-  data[13] = op_size & 0xff;
+  data[13] =  op_size & 0xff;
 }
 
 void freeCodePool(CodePool *pool)
@@ -460,7 +462,7 @@ JmpLabel *Scope_reserveJmpLabel(Scope *scope)
   return label;
 }
 
-void Scope_backpatchJmpLabel(JmpLabel *label, int32_t position)
+void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position)
 {
   uint8_t *data = (uint8_t *)label->address;
   data[0] = ((position - label->pos) >> 8) & 0xff;
