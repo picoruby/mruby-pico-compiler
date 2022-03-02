@@ -218,10 +218,10 @@ Dump_codeDump(uint8_t *irep)
 //      i = pc - irep->iseq;
       printf("OP_JMP\t\t%03d\n", (int)i+(int16_t)a);
       break;
-//    CASE(OP_JMPUW, S);
+    CASE(OP_JMPUW, S);
 ////      i = pc - irep->iseq;
-//      printf("OP_JMPUW\t\t%03d\n", (int)i+(int16_t)a);
-//      break;
+      printf("OP_JMPUW\t\t%03d\n", (int)i+(int16_t)a);
+      break;
     CASE(OP_JMPIF, BS);
 //      i = pc - irep->iseq;
       printf("OP_JMPIF\tR%d\t%03d\t", a, (int)i+(int16_t)b);

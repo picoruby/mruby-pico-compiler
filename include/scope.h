@@ -59,12 +59,18 @@ typedef struct code_pool
                                 // or 40 bytes total in 64 bit
 } CodePool;
 
+typedef struct retry_stack
+{
+  uint16_t pos;
+  struct retry_stack *prev;
+} RetryStack;
+
 typedef struct break_stack
 {
   void *point;
   struct break_stack *prev;
-  uint32_t next_pos;
-  uint32_t redo_pos;
+  uint16_t next_pos;
+  uint16_t redo_pos;
 } BreakStack;
 
 /*
@@ -81,7 +87,7 @@ typedef struct assign_symbol
 typedef struct jmp_label
 {
   void *address;
-  uint32_t pos;
+  uint16_t pos;
 } JmpLabel;
 
 typedef struct backpatch
@@ -120,6 +126,7 @@ typedef struct scope
   uint16_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
+  RetryStack *retry_stack;
   AssignSymbol *last_assign_symbol;
   Backpatch *backpatch; /* for backpatching of JMP label */
   int nargs_before_splat;
@@ -169,6 +176,10 @@ void Scope_freeCodePool(Scope *self);
 JmpLabel *Scope_reserveJmpLabel(Scope *self);
 
 void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position);
+
+void Scope_pushRetryStack(Scope *self);
+
+void Scope_popRetryStack(Scope *self);
 
 void Scope_pushBreakStack(Scope *self);
 

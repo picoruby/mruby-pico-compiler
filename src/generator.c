@@ -1809,6 +1809,7 @@ void gen_rescue(Scope *scope, Node *node)
   ExcHandler *exc_handler = new_exc_handler(scope, 0);
   write_exc_handler(&exc_handler->table[1], scope->vm_code_size);
   int pc = scope->vm_code_size;
+  Scope_pushRetryStack(scope);
   /* main stmt */
   codegen(scope, node->cons.cdr->cons.car);
   if (pc == scope->vm_code_size) {
@@ -1844,6 +1845,16 @@ void gen_rescue(Scope *scope, Node *node)
   codegen(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
   for (int i = 0; i < nrescue; i++)
     Scope_backpatchJmpLabel(labels_else[i], scope->vm_code_size);
+  Scope_popRetryStack(scope);
+}
+
+void gen_retry(Scope *scope, Node *node)
+{
+  int16_t s = scope->retry_stack->pos - scope->vm_code_size - 3;
+  Scope_pushCode(OP_JMPUW);
+  Scope_pushCode((uint8_t)(s >> 8));
+  Scope_pushCode((uint8_t)(s & 0xff));
+  codegen(scope, node->cons.cdr);
 }
 
 void codegen(Scope *scope, Node *tree)
@@ -2098,6 +2109,9 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_rescue:
       gen_rescue(scope, tree);
+      break;
+    case ATOM_retry:
+      gen_retry(scope, tree);
       break;
     default:
       // FIXME: `Unkown OP code: 2e`

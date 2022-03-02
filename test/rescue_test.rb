@@ -43,6 +43,21 @@ class RescueTest < PicoRubyTest
     end
   RUBY
 
+  desc "retry"
+  assert_equal(<<~RUBY, "2")
+    def my_method
+      a = 0
+      begin
+        raise if a < 2
+      rescue => e
+        a += 1
+        retry
+      end
+      p a
+    end
+    my_method
+  RUBY
+
   if @@vm_select == :mruby
 
     desc "splat error class"

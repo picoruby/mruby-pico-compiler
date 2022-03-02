@@ -470,6 +470,25 @@ void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position)
   picorbc_free(label);
 }
 
+void Scope_pushRetryStack(Scope *self)
+{
+  RetryStack *retry_stack = picorbc_alloc(sizeof(RetryStack));
+  retry_stack->pos = self->vm_code_size;
+  if (self->retry_stack) {
+    retry_stack->prev = self->retry_stack;
+  } else {
+    retry_stack->prev = NULL;
+  }
+  self->retry_stack = retry_stack;
+}
+
+void Scope_popRetryStack(Scope *self)
+{
+  RetryStack *memo = self->retry_stack;
+  self->retry_stack = self->retry_stack->prev;
+  picorbc_free(memo);
+}
+
 void Scope_pushBreakStack(Scope *self)
 {
   BreakStack *break_stack = picorbc_alloc(sizeof(BreakStack));
