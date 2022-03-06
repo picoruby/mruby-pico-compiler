@@ -32,8 +32,15 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
       objfile(src.pathmap("#{build_dir}/src/%n"))
     end
   end
+
   unless build.libmruby_core_enabled?
+    siding_objs = if build.libmruby_enabled?
+                    build.libmruby_core_objs.clone
+                  else
+                    []
+                  end
     build.libmruby_core_objs.clear
+    build.libmruby_objs << siding_objs
   end
   build.libmruby_core_objs << objs
 
