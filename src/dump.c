@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
 
 #include <dump.h>
 
@@ -27,6 +29,14 @@
 #define PICOFETCH_BSS() do {a=PICOREAD_B(); b=PICOREAD_S(); c=PICOREAD_S();} while (0)
 #define PICOFETCH_S()   do {a=PICOREAD_S();} while (0)
 #define PICOFETCH_W()   do {a=PICOREAD_W();} while (0)
+
+const char C_FORMAT_LINES[5][22] = {
+  "#include <stdint.h>",
+  "#ifdef __cplusplus",
+  "extern const uint8_t ",
+  "#endif",
+  "const uint8_t ",
+};
 
 void
 print_lv_a(void *dummy, uint8_t *irep, uint16_t a)
@@ -500,3 +510,31 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
     fprintf(fp, "\n");
   }
 }
+
+int Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
+{
+  if (initname[0] == '\0') {
+    fwrite(scope->vm_code, scope->vm_code_size, 1, fp);
+  } else {
+    int i;
+    for (i=0; i < 5; i++) {
+      fwrite(C_FORMAT_LINES[i], strlen(C_FORMAT_LINES[i]), 1, fp);
+      if (i == 2) {
+        fwrite(initname, strlen(initname), 1, fp);
+        fwrite("[];", 3, 1, fp);
+      }
+      if (i < 4) fwrite("\n", 1, 1, fp);
+    }
+    fwrite(initname, strlen(initname), 1, fp);
+    fwrite("[] = {", 6, 1, fp);
+    char buf[6];
+    for (i = 0; i < scope->vm_code_size; i++) {
+      if (i % 16 == 0) fwrite("\n", 1, 1, fp);
+      snprintf(buf, 6, "0x%02x,", scope->vm_code[i]);
+      fwrite(buf, 5, 1, fp);
+    }
+    fwrite("\n};", 3, 1, fp);
+  }
+  return 0;
+}
+

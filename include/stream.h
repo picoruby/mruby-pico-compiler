@@ -19,11 +19,11 @@ typedef struct stream_interface
 typedef struct fmemstream
 {
   int pos;
-  char *mem;
+  const char *mem;
   int size;
 } fmemstream;
 
-StreamInterface *StreamInterface_new(char *c, StreamType st);
+StreamInterface *StreamInterface_new(FILE *fp, const char *c, StreamType st);
 
 void StreamInterface_free(StreamInterface *si);
 

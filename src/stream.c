@@ -6,7 +6,7 @@
 #include <debug.h>
 #include <stream.h>
 
-fmemstream *fmemstreamopen(char *mem)
+fmemstream *fmemstreamopen(const char *mem)
 {
   fmemstream *stream = picorbc_alloc(sizeof(fmemstream));
   stream->pos = 0;
@@ -61,22 +61,23 @@ char *fmemgets(char *s, int max, FILE *file)
   return s;
 }
 
-StreamInterface *StreamInterface_new(char *c, StreamType type)
+StreamInterface *StreamInterface_new(FILE *fp, const char *c, StreamType type)
 {
   StreamInterface *si = picorbc_alloc(sizeof(StreamInterface));
   si->type = type;
   uint16_t length;
   switch (si->type) {
     case STREAM_TYPE_FILE:
-      if( (si->stream = (void *)fopen(c, "r" ) ) == NULL ) {
+      if (fp) {
+        si->stream = (void *)fp;
+      } else if( (si->stream = (void *)fopen(c, "r" ) ) == NULL ) {
         FATALP("picorbc: cannot open program file. (%s)", c);
         picorbc_free(si);
         return NULL;
-      } else {
-        si->fgetsProc = fgets;
-        si->feofProc = feof;
-        si->node_box_size = 255;
       }
+      si->fgetsProc = fgets;
+      si->feofProc = feof;
+      si->node_box_size = 255;
       break;
     case STREAM_TYPE_MEMORY:
       si->stream = (void *)fmemstreamopen(c);
