@@ -4,13 +4,13 @@
 
 #include <dump.h>
 
-#define MRB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
-#define MRB_ASPEC_OPT(a)          (((a) >> 13) & 0x1f)
-#define MRB_ASPEC_REST(a)         (((a) >> 12) & 0x1)
-#define MRB_ASPEC_POST(a)         (((a) >> 7) & 0x1f)
-#define MRB_ASPEC_KEY(a)          (((a) >> 2) & 0x1f)
-#define MRB_ASPEC_KDICT(a)        (((a) >> 1) & 0x1)
-#define MRB_ASPEC_BLOCK(a)        ((a) & 1)
+#define PICORB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
+#define PICORB_ASPEC_OPT(a)          (((a) >> 13) & 0x1f)
+#define PICORB_ASPEC_REST(a)         (((a) >> 12) & 0x1)
+#define PICORB_ASPEC_POST(a)         (((a) >> 7) & 0x1f)
+#define PICORB_ASPEC_KEY(a)          (((a) >> 2) & 0x1f)
+#define PICORB_ASPEC_KDICT(a)        (((a) >> 1) & 0x1)
+#define PICORB_ASPEC_BLOCK(a)        ((a) & 1)
 
 #define PICOPEEK_B(irep) (*(irep))
 
@@ -97,14 +97,14 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
     op_loadl:
 //      switch (irep->pool[b].tt) {
 //      case IREP_TT_FLOAT:
-//#ifndef MRB_NO_FLOAT
+//#ifndef PICORB_NO_FLOAT
 //        fprintf(fp, "OP_LOADL\tR%d\tL(%d)\t; %f", a, b, (double)irep->pool[b].u.f);
 //#endif
 //        break;
 //      case IREP_TT_INT32:
 //        fprintf(fp, "OP_LOADL\tR%d\tL(%d)\t; %" PRId32, a, b, irep->pool[b].u.i32);
 //        break;
-//#ifdef MRB_64BIT
+//#ifdef PICORB_64BIT
 //      case IREP_TT_INT64:
 //        fprintf(fp, "OP_LOADL\tR%d\tL(%d)\t; %" PRId64, a, b, irep->pool[b].u.i64);
 //        break;
@@ -278,13 +278,13 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       break;
     CASE(OP_ENTER, W);
       fprintf(fp, "OP_ENTER\t%d:%d:%d:%d:%d:%d:%d\n",
-             MRB_ASPEC_REQ(a),
-             MRB_ASPEC_OPT(a),
-             MRB_ASPEC_REST(a),
-             MRB_ASPEC_POST(a),
-             MRB_ASPEC_KEY(a),
-             MRB_ASPEC_KDICT(a),
-             MRB_ASPEC_BLOCK(a));
+             PICORB_ASPEC_REQ(a),
+             PICORB_ASPEC_OPT(a),
+             PICORB_ASPEC_REST(a),
+             PICORB_ASPEC_POST(a),
+             PICORB_ASPEC_KEY(a),
+             PICORB_ASPEC_KDICT(a),
+             PICORB_ASPEC_BLOCK(a));
       break;
     CASE(OP_KEY_P, BB);
       fprintf(fp, "OP_KEY_P\tR%d\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
@@ -511,7 +511,8 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
   }
 }
 
-int Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
+int
+Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
 {
   if (initname[0] == '\0') {
     fwrite(scope->vm_code, scope->vm_code_size, 1, fp);
@@ -538,3 +539,58 @@ int Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
   return 0;
 }
 
+int
+cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n, void *init_syms_code, int *mp)
+{
+  int ret;
+  if (scope->next) {
+    ret = cdump_irep_struct(scope->next, flags, fp, name, n, init_syms_code, mp);
+  } else if (scope->first_lower) {
+    ret = cdump_irep_struct(scope->first_lower, flags, fp, name, n, init_syms_code, mp);
+  }
+//  if (ret != PICORB_DUMP_OK) return ret;
+  fprintf(fp, "%s_%d\n", name, *mp);
+  (*mp)++;
+  return PICORB_DUMP_OK;
+}
+
+int
+Dump_cstructDump(FILE *fp, Scope *scope, uint8_t flags, const char *initname)
+{
+  if (fp == NULL || initname == NULL || initname[0] == '\0') {
+    return PICORB_DUMP_INVALID_ARGUMENT;
+  }
+  if (fprintf(fp, "#include <mruby.h>\n"
+                  "#include <mruby/irep.h>\n"
+                  "#include <mruby/debug.h>\n"
+                  "#include <mruby/proc.h>\n"
+                  "#include <mruby/presym.h>\n"
+                  "\n") < 0) {
+    return PICORB_DUMP_WRITE_FAULT;
+  }
+  fputs("#define mrb_BRACED(...) {__VA_ARGS__}\n", fp);
+  fputs("#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n", fp);
+  fputs("  static qualifier mrb_sym name[len] = mrb_BRACED syms\n", fp);
+  fputs("\n", fp);
+//  mrb_value init_syms_code = mrb_str_new_capa(mrb, 0);
+void *init_syms_code = NULL;
+  int max = 1;
+  int n = cdump_irep_struct(scope, flags, fp, initname, 0, init_syms_code, &max);
+  if (n != PICORB_DUMP_OK) return n;
+  fprintf(fp,
+          "%s\n"
+          "const struct RProc %s[] = {{\n",
+          (flags & PICORB_DUMP_STATIC) ? "static"
+                                    : "#ifdef __cplusplus\n"
+                                      "extern\n"
+                                      "#endif",
+          initname);
+  fprintf(fp, "NULL,NULL,PICORB_TT_PROC,PICORB_GC_RED,0,{&%s_irep_0},NULL,{NULL},\n}};\n", initname);
+  fputs("static void\n", fp);
+  fprintf(fp, "%s_init_syms(mrb_state *mrb)\n", initname);
+  fputs("{\n", fp);
+//  fputs(RSTRING_PTR(init_syms_code), fp);
+fputs("(init_syms_code)", fp);
+  fputs("}\n", fp);
+  return PICORB_DUMP_OK;
+}
