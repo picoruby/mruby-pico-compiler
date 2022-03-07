@@ -2136,7 +2136,7 @@ uint8_t *writeCode(Scope *scope, uint8_t *pos, bool verbose)
 {
   if (scope == NULL) return pos;
   memcpyFlattenCode(pos, scope->first_code_pool);
-  if (verbose) Dump_codeDump(pos);
+  if (verbose) Dump_hexDump(pos);
   pos += scope->vm_code_size;
   pos = writeCode(scope->first_lower, pos, verbose);
   pos = writeCode(scope->next, pos, verbose);

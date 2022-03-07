@@ -6,6 +6,6 @@
 #include <stdio.h>
 #include "../include/opcode.h"
 
-void Dump_codeDump(uint8_t *irep);
+void Dump_hexDump(uint8_t *irep);
 
 #endif /* PICORBC_DUMP_H_ */

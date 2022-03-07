@@ -45,7 +45,7 @@ pico_mrb_sym_dump(char *s, uint16_t b)
 #define CASE(insn,ops) case insn: PICOFETCH_ ## ops ();
 
 void
-Dump_codeDump(uint8_t *irep)
+Dump_hexDump(uint8_t *irep)
 {
   char mrb[10];
   uint32_t len = 0;
