@@ -435,6 +435,7 @@
       args_add = a->cons.cdr->cons.cdr->cons.cdr->cons.car;
     } else {
       FATALP("This should not happen");
+      return;
     }
     if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
       //yyerror(p, "both block arg and actual block given");
@@ -894,7 +895,7 @@ bodystmt(A) ::= compstmt(B)
                   }
                   else if (D) {
                     //yywarning(p, "else without rescue is useless");
-                    A = (B, D);
+                    A = B; // (B, D);
                   }
                   else {
                     A = B;
