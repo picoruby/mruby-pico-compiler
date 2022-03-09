@@ -23,8 +23,6 @@ typedef struct {
   bool is_super;
 } GenValuesResult;
 
-#define END_SECTION_SIZE 8
-
 bool hasCar(Node *n) {
   if (n->type != CONS)
     return false;
@@ -1702,6 +1700,7 @@ void write_exc_handler(uint8_t *record, uint32_t value)
 ExcHandler *new_exc_handler(Scope *scope, uint8_t type)
 {
   ExcHandler *exc_handler = picorbc_alloc(sizeof(ExcHandler));
+  scope->clen++;
   exc_handler->next = NULL;
   exc_handler->table[0] = type;
   if (scope->exc_handler == NULL) {
@@ -2147,7 +2146,7 @@ void Generator_generate(Scope *scope, Node *root, bool verbose)
 {
   codegen(scope, root);
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
-  int32_t codeSize = HEADER_SIZE + irepSize + END_SECTION_SIZE;
+  int32_t codeSize = MRB_HEADER_SIZE + irepSize + MRB_FOOTER_SIZE;
   uint8_t *vmCode = picorbc_alloc(codeSize);
   memcpy(&vmCode[0], "RITE0200", 8);
   vmCode[8] = (codeSize >> 24) & 0xff;
@@ -2156,14 +2155,14 @@ void Generator_generate(Scope *scope, Node *root, bool verbose)
   vmCode[11] = codeSize & 0xff;
   memcpy(&vmCode[12], "MATZ0000", 8);
   memcpy(&vmCode[20], "IREP", 4);
-  int sectionSize = irepSize + END_SECTION_SIZE + 4;
+  int sectionSize = irepSize + MRB_FOOTER_SIZE + 4;
   vmCode[24] = (sectionSize >> 24) & 0xff; // size of the section
   vmCode[25] = (sectionSize >> 16) & 0xff;
   vmCode[26] = (sectionSize >> 8) & 0xff;
   vmCode[27] = sectionSize & 0xff;
   memcpy(&vmCode[28], "0300", 4); // instruction version
-  writeCode(scope, &vmCode[HEADER_SIZE], verbose);
-  memcpy(&vmCode[HEADER_SIZE + irepSize], "END\0\0\0\0", 7);
+  writeCode(scope, &vmCode[MRB_HEADER_SIZE], verbose);
+  memcpy(&vmCode[MRB_HEADER_SIZE + irepSize], "END\0\0\0\0", 7);
   vmCode[codeSize - 1] = 0x08;
   scope->vm_code = vmCode;
   scope->vm_code_size = codeSize;

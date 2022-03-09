@@ -542,15 +542,74 @@ Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
 int
 cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n, void *init_syms_code, int *mp)
 {
-  int ret;
-  if (scope->next) {
-    ret = cdump_irep_struct(scope->next, flags, fp, name, n, init_syms_code, mp);
-  } else if (scope->first_lower) {
-    ret = cdump_irep_struct(scope->first_lower, flags, fp, name, n, init_syms_code, mp);
+  int i, len;
+  int max = *mp;
+  int debug_available = 0;
+
+  /* dump reps */
+  if (scope->first_lower) {
+    for (i=0,len=scope->nlowers; i<len; i++) {
+      *mp += len;
+      if (cdump_irep_struct(scope->next, flags, fp, name, n, init_syms_code, mp) != PICORB_DUMP_OK) {
+        return PICORB_DUMP_INVALID_ARGUMENT;
+      }
+    }
+    fprintf(fp,   "static const mrb_irep *%s_reps_%d[%d] = {\n", name, n, *mp);
   }
-//  if (ret != PICORB_DUMP_OK) return ret;
-  fprintf(fp, "%s_%d\n", name, *mp);
-  (*mp)++;
+  /* dump pool */
+  /* dump syms */
+  /* dump iseq */
+  len = scope->ilen + sizeof(ExcHandler) * scope->clen;
+  fprintf(fp,   "static const mrb_code %s_iseq_%d[%d] = {", name, n, len);
+  for (i=0; i<len; i++) {
+    if (i%20 == 0) fputs("\n", fp);
+    if (scope->upper == NULL) {
+      fprintf(fp, "0x%02x,", scope->vm_code[i + MRB_HEADER_SIZE + IREP_HEADER_SIZE]);
+    } else {
+      fprintf(fp, "0x%02x,", scope->vm_code[i + IREP_HEADER_SIZE]);
+    }
+  }
+  fputs("};\n", fp);
+  /* dump lv */
+  // TODO
+  /* dump debug */
+  // TODO
+  /* dump irep */
+  fprintf(fp, "static const mrb_irep %s_irep_%d = {\n", name, n);
+  fprintf(fp,   "  %d,%d,%d,\n", scope->nlocals, scope->max_sp, scope->clen);
+  fprintf(fp,   "  MRB_IREP_STATIC,%s_iseq_%d,\n", name, n);
+  if (scope->literal) {
+    fprintf(fp, "  %s_pool_%d,", name, n);
+  }
+  else {
+    fputs(      "  NULL,", fp);
+  }
+  if (scope->symbol) {
+    fprintf(fp, "%s_syms_%d,", name, n);
+  }
+  else {
+    fputs(      "NULL,", fp);
+  }
+  if (scope->first_lower) {
+    fprintf(fp, "%s_reps_%d,\n", name, n);
+  }
+  else {
+    fputs(      "NULL,\n", fp);
+  }
+  if (scope->lvar) {
+    fprintf(fp, "  %s_lv_%d,\n", name, n);
+  }
+  else {
+    fputs(      "  NULL,\t\t\t\t\t/* lv */\n", fp);
+  }
+  if(debug_available) {
+    fprintf(fp, "  &%s_debug_%d,\n", name, n);
+  }
+  else {
+    fputs("  NULL,\t\t\t\t\t/* debug_info */\n", fp);
+  }
+  fprintf(fp,   "  %d,%d,%d,%d,0\n};\n", scope->ilen, scope->plen, scope->slen, scope->nlowers);
+
   return PICORB_DUMP_OK;
 }
 

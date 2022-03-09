@@ -6,8 +6,6 @@
 #include <debug.h>
 #include <scope.h>
 
-#define IREP_HEADER_SIZE 14
-
 void generateCodePool(Scope *self, uint16_t size)
 {
   CodePool *pool = (CodePool *)picorbc_alloc(sizeof(CodePool) - IREP_HEADER_SIZE + size);
@@ -51,6 +49,10 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->max_sp = 1;
   self->vm_code = NULL;
   self->vm_code_size = 0;
+  self->ilen = 0;
+  self->slen = 0;
+  self->plen = 0;
+  self->clen = 0;
   self->break_stack = NULL;
   self->last_assign_symbol = NULL;
   self->backpatch = NULL;
@@ -159,7 +161,7 @@ void Scope_pushCode_self(Scope *self, int val)
   Scope_pushNCode_self(self, str, 1);
 }
 
-Literal *literal_new(const char *value, LiteralType type)
+static Literal *literal_new(const char *value, LiteralType type)
 {
   Literal *literal = picorbc_alloc(sizeof(Literal));
   literal->next = NULL;
@@ -188,6 +190,7 @@ int Scope_newLit(Scope *self, const char *value, LiteralType type){
   int index = literal_findIndex(self->literal, value, type);
   if (index >= 0) return index;
   Literal *newLit = literal_new(value, type);
+  self->plen++;
   Literal *lit = self->literal;
   if (lit == NULL) {
     self->literal = newLit;
@@ -201,7 +204,7 @@ int Scope_newLit(Scope *self, const char *value, LiteralType type){
   return index;
 }
 
-Symbol *symbol_new(const char *value)
+static Symbol *symbol_new(const char *value)
 {
   Symbol *symbol = picorbc_alloc(sizeof(Symbol));
   symbol->next = NULL;
@@ -238,6 +241,7 @@ int Scope_newSym(Scope *self, const char *value){
   int index = symbol_findIndex(self->symbol, value);
   if (index >= 0) return index;
   Symbol *newSym = symbol_new(value);
+  self->slen++;
   Symbol *sym = self->symbol;
   if (sym == NULL) {
     self->symbol = newSym;
@@ -353,30 +357,21 @@ size_t replace_picoruby_null(char *value)
 
 void Scope_finish(Scope *scope)
 {
+  scope->ilen = scope->vm_code_size;
   ExcHandler *tmp;
   ExcHandler *exc_handler = scope->exc_handler;
-  uint16_t op_size = scope->vm_code_size;
-  uint16_t handler_size = 0;
-  while (exc_handler) {
-    handler_size++;
+  for (int i = 0; i < scope->clen; i++) {
     Scope_pushNCode_self(scope, exc_handler->table, 13);
     tmp = exc_handler;
     exc_handler = exc_handler->next;
     picorbc_free(tmp);
   }
-  int count;
   int len;
   uint8_t *data = scope->first_code_pool->data;
   // literal
   Literal *lit;
-  count = 0;
-  lit = (Literal *)scope->literal;
-  while (lit != NULL) {
-    count++;
-    lit = lit->next;
-  }
-  Scope_pushCode((count >> 8) & 0xff);
-  Scope_pushCode(count & 0xff);
+  Scope_pushCode((scope->plen >> 8) & 0xff);
+  Scope_pushCode(scope->plen & 0xff);
   lit = scope->literal;
   while (lit != NULL) {
     Scope_pushCode(lit->type);
@@ -388,27 +383,21 @@ void Scope_finish(Scope *scope)
       Scope_pushCode((len >> 8) & 0xff);
       Scope_pushCode(len & 0xff);
       Scope_pushNCode((uint8_t *)lit->value, len);
-      Scope_pushCode(0); // Why????
+      Scope_pushCode(0);
     }
     lit = lit->next;
   }
   // symbol
   Symbol *sym;
-  count = 0;
-  sym = scope->symbol;
-  while (sym != NULL) {
-    count++;
-    sym = sym->next;
-  }
-  Scope_pushCode((count >> 8) & 0xff);
-  Scope_pushCode(count & 0xff);
+  Scope_pushCode((scope->slen >> 8) & 0xff);
+  Scope_pushCode(scope->slen & 0xff);
   sym = scope->symbol;
   while (sym != NULL) {
     len = strlen(sym->value);
     Scope_pushCode((len >>8) & 0xff);
     Scope_pushCode(len & 0xff);
     Scope_pushNCode((uint8_t *)sym->value, len);
-    Scope_pushCode(0); // NULL terminate? FIXME
+    Scope_pushCode(0);
     sym = sym->next;
   }
   // irep header - record length.
@@ -419,19 +408,17 @@ void Scope_finish(Scope *scope)
     data[2] = ((scope->vm_code_size >> 8) & 0xff);
     data[3] =  (scope->vm_code_size & 0xff);
   }
-  int l = scope->nlocals;
-  data[4] = (l >> 8) & 0xff;
-  data[5] = l & 0xff;
-  l = scope->max_sp + 1;
-  data[6] = (l >> 8) & 0xff;
-  data[7] = l & 0xff;
-  l = scope->nlowers;
-  data[8] = (l >> 8) & 0xff;
-  data[9] = l & 0xff;
-  data[10] = (handler_size >> 8) & 0xff;
-  data[11] =  handler_size & 0xff;
-  data[12] = (op_size >> 8) & 0xff;
-  data[13] =  op_size & 0xff;
+  data[4] = (scope->nlocals >> 8) & 0xff;
+  data[5] = scope->nlocals & 0xff;
+  scope->max_sp++;
+  data[6] = (scope->max_sp >> 8) & 0xff;
+  data[7] = scope->max_sp & 0xff;
+  data[8] = (scope->nlowers >> 8) & 0xff;
+  data[9] = scope->nlowers & 0xff;
+  data[10] = (scope->clen >> 8) & 0xff;
+  data[11] =  scope->clen & 0xff;
+  data[12] = (scope->ilen >> 8) & 0xff;
+  data[13] =  scope->ilen & 0xff;
 }
 
 void freeCodePool(CodePool *pool)

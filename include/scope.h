@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#define MRB_HEADER_SIZE  32
+#define MRB_FOOTER_SIZE   8
+#define IREP_HEADER_SIZE 14
+
 typedef enum literal_type
 {
   STRING_LITERAL  = 0,
@@ -123,6 +127,10 @@ typedef struct scope
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
   unsigned int max_sp;
+  uint16_t ilen;
+  uint16_t slen;
+  uint16_t plen;
+  uint16_t clen;
   uint16_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
