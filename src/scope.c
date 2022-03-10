@@ -380,6 +380,7 @@ void Scope_finish(Scope *scope)
       Scope_pushNCode((uint8_t *)&d, 8);
     } else {
       len = replace_picoruby_null((char *)lit->value);
+      lit->type = len<<2; /* used in cdump_pool() */
       Scope_pushCode((len >> 8) & 0xff);
       Scope_pushCode(len & 0xff);
       Scope_pushNCode((uint8_t *)lit->value, len);
@@ -393,7 +394,7 @@ void Scope_finish(Scope *scope)
   Scope_pushCode(scope->slen & 0xff);
   sym = scope->symbol;
   while (sym != NULL) {
-    len = strlen(sym->value);
+    len = replace_picoruby_null((char *)sym->value);
     Scope_pushCode((len >>8) & 0xff);
     Scope_pushCode(len & 0xff);
     Scope_pushNCode((uint8_t *)sym->value, len);

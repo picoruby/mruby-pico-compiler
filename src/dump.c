@@ -1,7 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 
+#include <value.h>
 #include <dump.h>
 
 #define PICORB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
@@ -539,6 +541,62 @@ Dump_mrbDump(FILE *fp, Scope *scope, const char *initname)
   return 0;
 }
 
+#define MRB_FLOAT_FMT "%.17g"
+
+static int
+cdump_pool(const Literal *p, FILE *fp)
+{
+  if (p->type & IREP_TT_NFLAG) {  /* number */
+    switch (p->type) {
+#ifdef MRB_64BIT
+    case INT64_LITERAL:
+      if (p->value < INT32_MIN || INT32_MAX < p->value) {
+        fprintf(fp, "{IREP_TT_INT64, {.i64=%" PRId64 "}},\n", p->value);
+      }
+      else {
+        /* Deprecated? INT32 */
+        fprintf(fp, "{IREP_TT_INT32, {.i32=%" PRId32 "}},\n", (int32_t)p->value);
+      }
+      break;
+#endif
+    case INT32_LITERAL:
+      /* Deprecated? INT32 */
+      //fprintf(fp, "{IREP_TT_INT32, {.i32=%" PRId32 "}},\n", p->value);
+      break;
+    case FLOAT_LITERAL:
+#ifndef MRB_NO_FLOAT
+      if (p->value == 0) {
+        fprintf(fp, "{IREP_TT_FLOAT, {.f=%#.1f}},\n", atof(p->value));
+      }
+      else {
+        fprintf(fp, "{IREP_TT_FLOAT, {.f=" MRB_FLOAT_FMT "}},\n", atof(p->value));
+      }
+#endif
+      break;
+    case BIGINT_LITERAL:
+      {
+        const char *s = p->value;
+        int len = strlen(s);
+        fputs("{IREP_TT_BIGINT, {\"", fp);
+        for (int i=0; i<len; i++) {
+          fprintf(fp, "\\x%02x", (int)s[i]&0xff);
+        }
+        fputs("\"}},\n", fp);
+      }
+      break;
+    }
+  }
+  else {                        /* string */
+    int i, len = p->type>>2;
+    const char *s = p->value;
+    fprintf(fp, "{IREP_TT_STR|(%d<<2), {\"", len);
+    for (i=0; i<len; i++) {
+      fprintf(fp, "\\x%02x", (int)s[i]&0xff);
+    }
+    fputs("\"}},\n", fp);
+  }
+  return PICORB_DUMP_OK;
+}
 int
 cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n, void *init_syms_code, int *mp)
 {
@@ -557,6 +615,17 @@ cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n
     fprintf(fp,   "static const mrb_irep *%s_reps_%d[%d] = {\n", name, n, *mp);
   }
   /* dump pool */
+  if (scope->literal) {
+    len=scope->plen;
+    fprintf(fp,   "static const mrb_pool_value %s_pool_%d[%d] = {\n", name, n, len);
+    Literal *lit = scope->literal;
+    for (i=0; i<len; i++) {
+      if (cdump_pool(lit, fp) != PICORB_DUMP_OK)
+        return PICORB_DUMP_INVALID_ARGUMENT;
+      lit = lit->next;
+    }
+    fputs("};\n", fp);
+  }
   /* dump syms */
   /* dump iseq */
   len = scope->ilen + sizeof(ExcHandler) * scope->clen;

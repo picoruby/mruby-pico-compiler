@@ -72,6 +72,7 @@ void pop_nest_stack(Scope *scope)
   scope->nest_stack = (scope->nest_stack >> 1);
 }
 
+/* Deprecated? */
 const char *push_gen_literal(Scope *scope, const char *s)
 {
   GenLiteral *lit = picorbc_alloc(sizeof(GenLiteral));
@@ -348,6 +349,7 @@ void gen_int(Scope *scope, Node *node, Misc is_neg)
     Scope_pushCode((signed long)val*(-1) >> 8 & 0xff);
     Scope_pushCode((signed long)val*(-1) & 0xff);
   } else {
+    /* Deprecated? INT32 */
     uint8_t digit = 2;
     unsigned long n = val;
     while (n /= 10) ++digit; /* count number of digit */

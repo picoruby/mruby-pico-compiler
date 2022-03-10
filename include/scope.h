@@ -10,15 +10,19 @@
 typedef enum literal_type
 {
   STRING_LITERAL  = 0,
-  SSTRING_LITERAL = 2,
   INT32_LITERAL   = 1,
+  SSTRING_LITERAL = 2,
   INT64_LITERAL   = 3,
-  FLOAT_LITERAL   = 5
+  FLOAT_LITERAL   = 5,
+  BIGINT_LITERAL   = 7
 } LiteralType;
+
+#define IREP_TT_NFLAG 1       /* number (non string) flag */
+#define IREP_TT_SFLAG 2       /* static string flag */
 
 typedef struct literal
 {
-  LiteralType type;
+  uint32_t type;    /* LiteralType and lenght(<<2) when it's a STRING */
   const char *value;
   struct literal *next;
 } Literal;
