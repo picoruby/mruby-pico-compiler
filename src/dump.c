@@ -734,7 +734,7 @@ sym_operator_name(const char *sym_name, int len)
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
-const char mrb_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+const char picorb_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 static void
 picorb_str_dump(char *result, const char *str, const uint32_t len)
@@ -779,8 +779,8 @@ picorb_str_dump(char *result, const char *str, const uint32_t len)
     else {
       buf[0] = '\\';
       buf[1] = 'x';
-      buf[3] = mrb_digitmap[c % 16]; c /= 16;
-      buf[2] = mrb_digitmap[c % 16];
+      buf[3] = picorb_digitmap[c % 16]; c /= 16;
+      buf[2] = picorb_digitmap[c % 16];
       strsafecat(result, buf, 1024);
       continue;
     }
