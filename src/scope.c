@@ -134,7 +134,7 @@ void Scope_free(Scope *self)
   freeSymbolRcsv(self->symbol);
   freeLvarRcsv(self->lvar);
   freeAssignSymbol(self->last_assign_symbol);
-  if (self->vm_code != NULL) {
+  if (self->upper == NULL) {
     picorbc_free(self->vm_code);
   }
   picorbc_free(self);
@@ -218,6 +218,7 @@ Lvar *lvar_new(const char *name, int regnum)
   lvar->regnum = regnum;
   lvar->next = NULL;
   lvar->name = name;
+  lvar->len = strlen(name);
   return lvar;
 }
 
@@ -394,10 +395,11 @@ void Scope_finish(Scope *scope)
   Scope_pushCode(scope->slen & 0xff);
   sym = scope->symbol;
   while (sym != NULL) {
-    len = replace_picoruby_null((char *)sym->value);
-    Scope_pushCode((len >>8) & 0xff);
-    Scope_pushCode(len & 0xff);
-    Scope_pushNCode((uint8_t *)sym->value, len);
+    /* len is used in dump.c */
+    sym->len = replace_picoruby_null((char *)sym->value);
+    Scope_pushCode((sym->len >>8) & 0xff);
+    Scope_pushCode(sym->len & 0xff);
+    Scope_pushNCode((uint8_t *)sym->value, sym->len);
     Scope_pushCode(0);
     sym = sym->next;
   }

@@ -39,16 +39,18 @@ typedef struct gen_literal
  */
 typedef struct symbol
 {
+  uint32_t len; /* used in dump.c */
   const char *value;
   struct symbol *next;
 } Symbol;
 
 typedef struct lvar
 {
+  uint32_t len;
   const char *name;
-  int regnum;
   struct lvar *next;
-} Lvar;
+  uint8_t regnum;
+} Lvar; /* will be casted as Symbol in dump.c */
 
 typedef struct lvar_scope_reg
 {

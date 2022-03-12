@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include <value.h>
+#include <common.h>
 #include <dump.h>
 
 #define PICORB_ASPEC_REQ(a)          (((a) >> 18) & 0x1f)
@@ -597,22 +598,283 @@ cdump_pool(const Literal *p, FILE *fp)
   }
   return PICORB_DUMP_OK;
 }
+
+static const char *
+sym_var_name(const char *initname, const char *key, int n)
+{
+  char buf[32];
+  size_t len = sizeof(buf)+strlen(initname)+strlen(key)+3;
+  char *s = picorbc_alloc(len);
+  strsafecpy(s, initname, len);
+  strsafecat(s, "_", len);
+  strsafecat(s, key, len);
+  strsafecat(s, "_", len);
+  snprintf(buf, sizeof(buf), "%d", n);
+  strsafecat(s, buf, len);
+  return s;
+}
+
+#define ISASCII(c) ((unsigned)(c) <= 0x7f)
+#define ISPRINT(c) (((unsigned)(c) - 0x20) < 0x5f)
+#define ISSPACE(c) ((c) == ' ' || (unsigned)(c) - '\t' < 5)
+#define ISUPPER(c) (((unsigned)(c) - 'A') < 26)
+#define ISLOWER(c) (((unsigned)(c) - 'a') < 26)
+#define ISALPHA(c) ((((unsigned)(c) | 0x20) - 'a') < 26)
+#define ISDIGIT(c) (((unsigned)(c) - '0') < 10)
+#define ISXDIGIT(c) (ISDIGIT(c) || ((unsigned)(c) | 0x20) - 'a' < 6)
+#define ISALNUM(c) (ISALPHA(c) || ISDIGIT(c))
+#define ISBLANK(c) ((c) == ' ' || (c) == '\t')
+#define ISCNTRL(c) ((unsigned)(c) < 0x20 || (c) == 0x7f)
+#define TOUPPER(c) (ISLOWER(c) ? ((c) & 0x5f) : (c))
+#define TOLOWER(c) (ISUPPER(c) ? ((c) | 0x20) : (c))
+
+static bool
+sym_name_word_p(const char *name, int len)
+{
+  if (len == 0) return false;
+  if (name[0] != '_' && !ISALPHA(name[0])) return false;
+  for (int i = 1; i < len; i++) {
+    if (name[i] != '_' && !ISALNUM(name[i])) return false;
+  }
+  return true;
+}
+
+static bool
+sym_name_with_equal_p(const char *name, int len)
+{
+  return len >= 2 && name[len-1] == '=' && sym_name_word_p(name, len-1);
+}
+
+static bool
+sym_name_with_question_mark_p(const char *name, int len)
+{
+  return len >= 2 && name[len-1] == '?' && sym_name_word_p(name, len-1);
+}
+
+static bool
+sym_name_with_bang_p(const char *name, int len)
+{
+  return len >= 2 && name[len-1] == '!' && sym_name_word_p(name, len-1);
+}
+
+static bool
+sym_name_ivar_p(const char *name, int len)
+{
+  return len >= 2 && name[0] == '@' && sym_name_word_p(name+1, len-1);
+}
+
+static bool
+sym_name_cvar_p(const char *name, int len)
+{
+  return len >= 3 && name[0] == '@' && sym_name_ivar_p(name+1, len-1);
+}
+
+#define OPERATOR_SYMBOL(sym_name, name) {name, sym_name, sizeof(sym_name)-1}
+struct operator_symbol {
+  const char *name;
+  const char *sym_name;
+  uint16_t sym_name_len;
+};
+static const struct operator_symbol operator_table[] = {
+  OPERATOR_SYMBOL("!", "not"),
+  OPERATOR_SYMBOL("%", "mod"),
+  OPERATOR_SYMBOL("&", "and"),
+  OPERATOR_SYMBOL("*", "mul"),
+  OPERATOR_SYMBOL("+", "add"),
+  OPERATOR_SYMBOL("-", "sub"),
+  OPERATOR_SYMBOL("/", "div"),
+  OPERATOR_SYMBOL("<", "lt"),
+  OPERATOR_SYMBOL(">", "gt"),
+  OPERATOR_SYMBOL("^", "xor"),
+  OPERATOR_SYMBOL("`", "tick"),
+  OPERATOR_SYMBOL("|", "or"),
+  OPERATOR_SYMBOL("~", "neg"),
+  OPERATOR_SYMBOL("!=", "neq"),
+  OPERATOR_SYMBOL("!~", "nmatch"),
+  OPERATOR_SYMBOL("&&", "andand"),
+  OPERATOR_SYMBOL("**", "pow"),
+  OPERATOR_SYMBOL("+@", "plus"),
+  OPERATOR_SYMBOL("-@", "minus"),
+  OPERATOR_SYMBOL("<<", "lshift"),
+  OPERATOR_SYMBOL("<=", "le"),
+  OPERATOR_SYMBOL("==", "eq"),
+  OPERATOR_SYMBOL("=~", "match"),
+  OPERATOR_SYMBOL(">=", "ge"),
+  OPERATOR_SYMBOL(">>", "rshift"),
+  OPERATOR_SYMBOL("[]", "aref"),
+  OPERATOR_SYMBOL("||", "oror"),
+  OPERATOR_SYMBOL("<=>", "cmp"),
+  OPERATOR_SYMBOL("===", "eqq"),
+  OPERATOR_SYMBOL("[]=", "aset"),
+};
+
+static const char*
+sym_operator_name(const char *sym_name, int len)
+{
+  uint32_t table_size = sizeof(operator_table)/sizeof(struct operator_symbol);
+  if (operator_table[table_size-1].sym_name_len < len) return NULL;
+
+  uint32_t start, idx;
+  int cmp;
+  const struct operator_symbol *op_sym;
+  for (start = 0; table_size != 0; table_size/=2) {
+    idx = start+table_size/2;
+    op_sym = &operator_table[idx];
+    cmp = (int)len-(int)op_sym->sym_name_len;
+    if (cmp == 0) {
+      cmp = memcmp(sym_name, op_sym->sym_name, len);
+      if (cmp == 0) return op_sym->name;
+    }
+    if (0 < cmp) {
+      start = ++idx;
+      --table_size;
+    }
+  }
+  return NULL;
+}
+
+#define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
+const char mrb_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+static void
+picorb_str_dump(char *result, const char *str, const uint32_t len)
+{
+  result[0] = '"';
+  result[1] = '\0';
+  const char *p, *pend;
+  char buf[5];  /* `\x??` or UTF-8 character */
+
+  p = str; pend = str + len;
+  for (;p < pend; p++) {
+    memset(buf, 0, 5);
+    unsigned char c, cc;
+    c = *p;
+    if (c == '"'|| c == '\\' || (c == '#' && IS_EVSTR(p+1, pend))) {
+      buf[0] = '\\'; buf[1] = c;
+      strsafecat(result, buf, 1024);
+      continue;
+    }
+    if (ISPRINT(c)) {
+      buf[0] = c;
+      strsafecat(result, buf, 1024);
+      continue;
+    }
+    switch (c) {
+      case '\n': cc = 'n'; break;
+      case '\r': cc = 'r'; break;
+      case '\t': cc = 't'; break;
+      case '\f': cc = 'f'; break;
+      case '\013': cc = 'v'; break;
+      case '\010': cc = 'b'; break;
+      case '\007': cc = 'a'; break;
+      case 033: cc = 'e'; break;
+      default: cc = 0; break;
+    }
+    if (cc) {
+      buf[0] = '\\';
+      buf[1] = (char)cc;
+      strsafecat(result, buf, 1024);
+      continue;
+    }
+    else {
+      buf[0] = '\\';
+      buf[1] = 'x';
+      buf[3] = mrb_digitmap[c % 16]; c /= 16;
+      buf[2] = mrb_digitmap[c % 16];
+      strsafecat(result, buf, 1024);
+      continue;
+    }
+  }
+  strsafecat(result, "\"", 1024);
+}
+static int
+cdump_sym(Symbol *sym, const char *var_name, int idx, char *init_syms_code, FILE *fp)
+{
+  if (sym == 0) return PICORB_DUMP_INVALID_ARGUMENT;
+
+  int len = sym->len;
+  const char *name = sym->value, *op_name;
+  if (!name) return PICORB_DUMP_INVALID_ARGUMENT;
+  if (sym_name_word_p(name, len)) {
+    fprintf(fp, "MRB_SYM(%s)", name);
+  }
+  else if (sym_name_with_equal_p(name, len)) {
+    fprintf(fp, "MRB_SYM_E(%.*s)", (int)(len-1), name);
+  }
+  else if (sym_name_with_question_mark_p(name, len)) {
+    fprintf(fp, "MRB_SYM_Q(%.*s)", (int)(len-1), name);
+  }
+  else if (sym_name_with_bang_p(name, len)) {
+    fprintf(fp, "MRB_SYM_B(%.*s)", (int)(len-1), name);
+  }
+  else if (sym_name_ivar_p(name, len)) {
+    fprintf(fp, "MRB_IVSYM(%s)", name+1);
+  }
+  else if (sym_name_cvar_p(name, len)) {
+    fprintf(fp, "MRB_CVSYM(%s)", name+2);
+  }
+  else if ((op_name = sym_operator_name(name, len))) {
+    fprintf(fp, "MRB_OPSYM(%s)", op_name);
+  }
+  else {
+    char buf[32];
+    strsafecat(init_syms_code, "  ", 1024);
+    strsafecat(init_syms_code, var_name, 1024);
+    snprintf(buf, sizeof(buf), "[%d] = ", idx);
+    strsafecat(init_syms_code, buf, 1024);
+    strsafecat(init_syms_code, "mrb_intern_lit(mrb, ", 1024);
+    char *result = picorbc_alloc(1024);
+    picorb_str_dump(result, sym->value, sym->len);
+    strsafecat(init_syms_code, result, 1024);
+    picorbc_free(result);
+    strsafecat(init_syms_code, ");\n", 1024);
+    fputs("0", fp);
+  }
+  fputs(", ", fp);
+  return PICORB_DUMP_OK;
+}
+
+static int
+cdump_syms(const char *name, const char *key, int n, int syms_len, Symbol *syms, char *init_syms_code, FILE *fp)
+{
+//  int ai = mrb_gc_arena_save(mrb);
+  int code_len = strlen(init_syms_code);
+  const char *var_name = sym_var_name(name, key, n);
+  fprintf(fp, "mrb_DEFINE_SYMS_VAR(%s, %d, (", var_name, syms_len);
+  Symbol *sym = syms;
+  for (int i=0; i<syms_len; i++) {
+    cdump_sym(sym, var_name, i, init_syms_code, fp);
+    sym = sym->next;
+  }
+  picorbc_free((void *)var_name);
+  fputs("), ", fp);
+  if (code_len == strlen(init_syms_code)) fputs("const", fp);
+  fputs(");\n", fp);
+//  mrb_gc_arena_restore(mrb, ai);
+  return PICORB_DUMP_OK;
+}
+
 int
-cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n, void *init_syms_code, int *mp)
+cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n, char *init_syms_code, int *mp)
 {
   int i, len;
   int max = *mp;
   int debug_available = 0;
-
   /* dump reps */
   if (scope->first_lower) {
+    Scope *next = scope->first_lower;
     for (i=0,len=scope->nlowers; i<len; i++) {
       *mp += len;
-      if (cdump_irep_struct(scope->next, flags, fp, name, n, init_syms_code, mp) != PICORB_DUMP_OK) {
+      if (cdump_irep_struct(next, flags, fp, name, max+i, init_syms_code, mp) != PICORB_DUMP_OK) {
         return PICORB_DUMP_INVALID_ARGUMENT;
       }
+      next = next->next;
     }
-    fprintf(fp,   "static const mrb_irep *%s_reps_%d[%d] = {\n", name, n, *mp);
+    fprintf(fp,   "static const mrb_irep *%s_reps_%d[%d] = {\n", name, n, len);
+    for (i=0,len=scope->nlowers; i<len; i++) {
+      fprintf(fp,   "  &%s_irep_%d,\n", name, max+i);
+    }
+    fputs("};\n", fp);
   }
   /* dump pool */
   if (scope->literal) {
@@ -627,6 +889,9 @@ cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n
     fputs("};\n", fp);
   }
   /* dump syms */
+  if (scope->symbol) {
+    cdump_syms(name, "syms", n, scope->slen, scope->symbol, init_syms_code, fp);
+  }
   /* dump iseq */
   len = scope->ilen + sizeof(ExcHandler) * scope->clen;
   fprintf(fp,   "static const mrb_code %s_iseq_%d[%d] = {", name, n, len);
@@ -635,12 +900,16 @@ cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n
     if (scope->upper == NULL) {
       fprintf(fp, "0x%02x,", scope->vm_code[i + MRB_HEADER_SIZE + IREP_HEADER_SIZE]);
     } else {
+      if (scope->vm_code) {
       fprintf(fp, "0x%02x,", scope->vm_code[i + IREP_HEADER_SIZE]);
+      }
     }
   }
   fputs("};\n", fp);
   /* dump lv */
-  // TODO
+  if (scope->lvar) {
+    cdump_syms(name, "lv", n, scope->nlocals-1, (Symbol*)(scope->lvar), init_syms_code, fp);
+  }
   /* dump debug */
   // TODO
   /* dump irep */
@@ -689,8 +958,6 @@ Dump_cstructDump(FILE *fp, Scope *scope, uint8_t flags, const char *initname)
     return PICORB_DUMP_INVALID_ARGUMENT;
   }
   if (fprintf(fp, "#include <mruby.h>\n"
-                  "#include <mruby/irep.h>\n"
-                  "#include <mruby/debug.h>\n"
                   "#include <mruby/proc.h>\n"
                   "#include <mruby/presym.h>\n"
                   "\n") < 0) {
@@ -700,8 +967,8 @@ Dump_cstructDump(FILE *fp, Scope *scope, uint8_t flags, const char *initname)
   fputs("#define mrb_DEFINE_SYMS_VAR(name, len, syms, qualifier) \\\n", fp);
   fputs("  static qualifier mrb_sym name[len] = mrb_BRACED syms\n", fp);
   fputs("\n", fp);
-//  mrb_value init_syms_code = mrb_str_new_capa(mrb, 0);
-void *init_syms_code = NULL;
+  char *init_syms_code = (char *)picorbc_alloc(1024); // FIXME
+  init_syms_code[0] = '\0';
   int max = 1;
   int n = cdump_irep_struct(scope, flags, fp, initname, 0, init_syms_code, &max);
   if (n != PICORB_DUMP_OK) return n;
@@ -710,15 +977,15 @@ void *init_syms_code = NULL;
           "const struct RProc %s[] = {{\n",
           (flags & PICORB_DUMP_STATIC) ? "static"
                                     : "#ifdef __cplusplus\n"
-                                      "extern\n"
+                                      "extern const struct RProc test[];\n"
                                       "#endif",
           initname);
-  fprintf(fp, "NULL,NULL,PICORB_TT_PROC,PICORB_GC_RED,0,{&%s_irep_0},NULL,{NULL},\n}};\n", initname);
+  fprintf(fp, "NULL,NULL,MRB_TT_PROC,7,0,{&%s_irep_0},NULL,{NULL},\n}};\n", initname);
   fputs("static void\n", fp);
   fprintf(fp, "%s_init_syms(mrb_state *mrb)\n", initname);
   fputs("{\n", fp);
-//  fputs(RSTRING_PTR(init_syms_code), fp);
-fputs("(init_syms_code)", fp);
+  fputs(init_syms_code, fp);
+  picorbc_free(init_syms_code);
   fputs("}\n", fp);
   return PICORB_DUMP_OK;
 }

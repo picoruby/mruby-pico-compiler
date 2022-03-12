@@ -366,7 +366,12 @@ retry:
         Token_free(lazyToken);
         return -1;
       }
-      if (self->line[self->pos] == self->modeTerminater) {
+      else if (self->line[self->pos] == '\\' && 
+               self->line[self->pos+1] == self->modeTerminater) {
+        self->pos++;
+        c[0] = self->modeTerminater;
+      }
+      else if (self->line[self->pos] == self->modeTerminater) {
         lazyToken->line_num = self->line_num;
         lazyToken->pos = self->pos;
         lazyToken->type = STRING_END;

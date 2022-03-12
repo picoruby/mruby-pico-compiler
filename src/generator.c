@@ -2133,10 +2133,12 @@ void memcpyFlattenCode(uint8_t *body, CodePool *code_pool)
 }
 
 
-uint8_t *writeCode(Scope *scope, uint8_t *pos, bool verbose)
+static uint8_t *
+writeCode(Scope *scope, uint8_t *pos, bool verbose)
 {
   if (scope == NULL) return pos;
   memcpyFlattenCode(pos, scope->first_code_pool);
+  scope->vm_code = pos; /* used in dump.c */
   if (verbose) Dump_hexDump(stdout, pos);
   pos += scope->vm_code_size;
   pos = writeCode(scope->first_lower, pos, verbose);
