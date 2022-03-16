@@ -76,7 +76,7 @@ printToken(Tokenizer *tokenizer, Token *token) {
      token->pos);
 }
 
-bool Compiler_compile(ParserState *p, StreamInterface *si)
+bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *c)
 {
   /* unusing global_preg_cache prefers smaller RAM consumption */
   MyRegex_setup(false);
