@@ -449,7 +449,7 @@
   args_with_block_super(ParserState *p, Node *a, Node *b)
   {
     if (!b) return;
-    Node *args_add;
+    Node *args_add = NULL;
     if (Node_atomType(a->cons.cdr->cons.car) == ATOM_args_add) {
       /* fcall */
       args_add = a->cons.cdr->cons.car;
@@ -459,7 +459,7 @@
     } else {
       FATALP("This should not happen");
     }
-    if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+    if (args_add && Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
       //yyerror(p, "both block arg and actual block given");
       ERRORP("both block arg and actual block given");
     } else {
