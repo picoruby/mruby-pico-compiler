@@ -1,11 +1,3 @@
-module MRuby
-  class Build
-    def libmruby_core_enabled?
-      @enable_libmruby_core != false
-    end
-  end
-end
-
 MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.license = 'MIT'
   spec.authors = 'HASUMI Hitoshi'
@@ -24,7 +16,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  objs = %w[parse compiler tokenizer].map do |name|
+  objs = %w[parse compiler tokenizer common context dump generator mrb_state_misc mrbgem my_regex node regex scope stream token].map do |name|
     src = "#{src_dir}/#{name}.c"
     if build.cxx_exception_enabled?
       build.compile_as_cxx(src)
@@ -33,15 +25,6 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  unless build.libmruby_core_enabled?
-    siding_objs = if build.libmruby_enabled?
-                    build.libmruby_core_objs.clone
-                  else
-                    []
-                  end
-    build.libmruby_core_objs.clear
-    build.libmruby_objs << siding_objs
-  end
   build.libmruby_core_objs << objs
 
   directory include_dir
