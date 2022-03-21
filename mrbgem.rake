@@ -25,6 +25,9 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
+  if cc.defines.include?("DISABLE_MRUBY")
+    build.libmruby_core_objs.clear
+  end
   build.libmruby_core_objs << objs
 
   directory include_dir
