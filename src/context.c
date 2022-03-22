@@ -6,7 +6,9 @@
 picorbc_context*
 picorbc_context_new(void)
 {
-  return (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
+  picorbc_context *c = (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
+  memset(c, 0, sizeof(picorbc_context));
+  return c;
 }
 
 void
