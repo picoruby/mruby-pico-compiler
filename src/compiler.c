@@ -127,7 +127,7 @@ bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *c)
           }
           if ((prevType == DSTRING_END || prevType == STRING_BEG)
               && topToken->type == STRING_END) {
-            Parse(parser, STRING, ""); /* to help pareser */
+            Parse(parser, STRING, ""); /* to help parser */
           }
           if (topToken->type != STRING_END && topToken->type != COMMENT) {
             Parse(parser, topToken->type, string);

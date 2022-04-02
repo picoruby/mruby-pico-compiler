@@ -13,7 +13,10 @@ microrb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
   if (Compiler_compile(p, si, c)) {
     mrb_load_irep(mrb, p->scope->vm_code);
   } else {
+    // TODO
   }
+  StreamInterface_free(si);
+  Compiler_parserStateFree(p);
   return ret;
 }
 
@@ -93,7 +96,10 @@ microrb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *c)
   if (Compiler_compile(p, si, c)) {
     mrb_load_irep(mrb, p->scope->vm_code);
   } else {
+    // TODO
   }
+  StreamInterface_free(si);
+  Compiler_parserStateFree(p);
   return ret;
 }
 
