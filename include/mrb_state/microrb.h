@@ -1,5 +1,5 @@
-#ifndef PICORBC_MISC_H_
-#define PICORBC_MISC_H_
+#ifndef PICORBC_MICRORB_H_
+#define PICORBC_MICRORB_H_
 
 #ifndef DISABLE_MRUBY
 
@@ -18,9 +18,9 @@ MRB_API mrb_value mrb_load_irep(mrb_state *mrb, const uint8_t *bin);
 /* from dump.h */
 MRB_API mrb_value mrb_load_irep_file_cxt(mrb_state*, FILE*, picorbc_context*);
 
-MRB_API mrb_value picorb_load_string(mrb_state *mrb, const char *str, picorbc_context *c);
+MRB_API mrb_value microrb_load_string(mrb_state *mrb, const char *str, picorbc_context *c);
 
-MRB_API mrb_value picorb_load_string_cxt(mrb_state *mrb, const char *s, picorbc_context *c);
+MRB_API mrb_value microrb_load_string_cxt(mrb_state *mrb, const char *s, picorbc_context *c);
 
 /* from proc.h */
 struct REnv {
@@ -68,8 +68,8 @@ mrb_vm_ci_env_set(mrb_callinfo *ci, struct REnv *e)
   }
 }
 
-mrb_value picorb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c);
+mrb_value microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c);
 
 #endif /* DISABLE_MRUBY */
 
-#endif /* PICORBC_MISC_H_*/
+#endif /* PICORBC_MICRORB_H_*/

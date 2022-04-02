@@ -1,11 +1,11 @@
 #ifndef DISABLE_MRUBY
 
 #include <string.h>
-#include <mrb_state/misc.h>
+#include <mrb_state/microrb.h>
 #include <debug.h>
 
 MRB_API mrb_value
-picorb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
+microrb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(fp, NULL, STREAM_TYPE_FILE);
@@ -40,7 +40,7 @@ bin_to_uint32(const uint8_t *bin)
 }
 
 mrb_value
-picorb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
+microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
 {
   union {
     char b[DETECT_SIZE];
@@ -58,10 +58,9 @@ picorb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
       memchr(leading.b, '\0', bufsize) == NULL) {
     //return mrb_load_exec(mrb, mrb_parse_file_continue(mrb, fp, leading.b, bufsize, c), c);
     rewind(fp);
-    return picorb_load_file_cxt(mrb, fp, c);
+    return microrb_load_file_cxt(mrb, fp, c);
   }
   else {
-    FATALP("4");
 //    size_t binsize;
 //    uint8_t *bin;
 //    mrb_value bin_obj = mrb_nil_value(); /* temporary string object */
@@ -86,7 +85,7 @@ picorb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
 }
 
 MRB_API mrb_value
-picorb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *c)
+microrb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *c)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(NULL, (char *)str, STREAM_TYPE_MEMORY);

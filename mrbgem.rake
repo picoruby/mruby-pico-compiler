@@ -16,7 +16,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  objs = %w[parse compiler tokenizer common context dump generator mrb_state_misc mrbgem my_regex node regex scope stream token].map do |name|
+  objs = %w[parse compiler tokenizer common context dump generator microrb mrbgem my_regex node regex scope stream token].map do |name|
     src = "#{src_dir}/#{name}.c"
     if build.cxx_exception_enabled?
       build.compile_as_cxx(src)
