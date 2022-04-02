@@ -20,12 +20,9 @@ void generateCodePool(Scope *self, uint16_t size)
 Scope *Scope_new(Scope *upper, bool lvar_top)
 {
   Scope *self = picorbc_alloc(sizeof(Scope));
-  self->next_lower_number = 0;
+  memset(self, 0, sizeof(Scope));
   self->upper = upper;
-  self->first_lower = NULL;
   self->lvar_top = lvar_top;
-  self->nlowers = 0;
-  self->next = NULL;
   if (upper != NULL) {
     if (upper->first_lower == NULL) {
       upper->first_lower = self;
@@ -36,29 +33,12 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
     }
     upper->nlowers++;
   }
-  self->current_code_pool = NULL;
   generateCodePool(self, IREP_HEADER_SIZE);
   self->first_code_pool = self->current_code_pool;
   self->first_code_pool->index = IREP_HEADER_SIZE;
   self->nlocals = 1;
-  self->symbol = NULL;
-  self->lvar = NULL;
-  self->literal = NULL;
-  self->gen_literal = NULL;
   self->sp = 1;
   self->max_sp = 1;
-  self->vm_code = NULL;
-  self->vm_code_size = 0;
-  self->ilen = 0;
-  self->slen = 0;
-  self->plen = 0;
-  self->clen = 0;
-  self->break_stack = NULL;
-  self->last_assign_symbol = NULL;
-  self->backpatch = NULL;
-  self->irep_parameters = 0;
-  self->nargs_before_splat = 0;
-  self->exc_handler = NULL;
   return self;
 }
 
@@ -106,10 +86,10 @@ void freeSymbolRcsv(Symbol *symbol)
   picorbc_free(symbol);
 }
 
-void freeLvarRcsv(Lvar *lvar)
+void Scope_freeLvar(Lvar *lvar)
 {
   if (lvar == NULL) return;
-  freeLvarRcsv(lvar->next);
+  Scope_freeLvar(lvar->next);
   picorbc_free(lvar);
 }
 
@@ -132,7 +112,7 @@ void Scope_free(Scope *self)
   freeLiteralRcsv(self->literal);
   freeGenLiteralRcsv(self->gen_literal);
   freeSymbolRcsv(self->symbol);
-  freeLvarRcsv(self->lvar);
+  Scope_freeLvar(self->lvar);
   freeAssignSymbol(self->last_assign_symbol);
   if (self->upper == NULL) {
     picorbc_free(self->vm_code);

@@ -187,6 +187,8 @@ void Scope_finish(Scope *self);
 
 void Scope_freeCodePool(Scope *self);
 
+void Scope_freeLvar(Lvar *);
+
 JmpLabel *Scope_reserveJmpLabel(Scope *self);
 
 void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position);

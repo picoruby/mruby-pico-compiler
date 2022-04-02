@@ -2174,9 +2174,9 @@ none(A) ::= . { A = 0; }
   StringPool *stringPool_new(StringPool *prev, uint16_t size)
   {
     StringPool *pool = (StringPool *)LEMON_ALLOC(STRING_POOL_HEADER_SIZE + size);
+    memset(pool, 0, STRING_POOL_HEADER_SIZE + size);
     pool->prev = prev;
     pool->size = size;
-    pool->index = 0;
     return pool;
   }
 
@@ -2227,22 +2227,16 @@ none(A) ::= . { A = 0; }
   ParserState *ParseInitState(uint8_t node_box_size)
   {
     ParserState *p = LEMON_ALLOC(sizeof(ParserState));
+    memset(p, 0, sizeof(ParserState));
     p->node_box_size = node_box_size;
     p->scope = Scope_new(NULL, true);
-    p->current_node_box = NULL;
     p->root_node_box = Node_newBox(p);
     p->current_node_box = p->root_node_box;
     p->current_string_pool = stringPool_new(NULL, STRING_POOL_POOL_SIZE);
     strcpy(STRING_NULL, "");
     strcpy(STRING_NEG,  "-");
     strcpy(STRING_ARY, "[]");
-    p->error_count = 0;
-    p->cond_stack = 0;
-    p->cmdarg_stack = 0;
     p->paren_stack_num = -1;
-    p->lpar_beg = 0;
-    p->in_def = 0;
-    p->in_single = 0;
     return p;
   }
 
