@@ -104,7 +104,7 @@ void StreamInterface_free(StreamInterface *si)
 {
   switch (si->type) {
     case STREAM_TYPE_FILE:
-      fclose(si->stream);
+      //fclose() should be invoked where fopen was called
       picorbc_free(si);
       break;
     case STREAM_TYPE_MEMORY:

@@ -1,7 +1,9 @@
 #include <string.h>
+#include <stdbool.h>
 
 #include <context.h>
 #include "common.h"
+#include "scope.h"
 
 picorbc_context*
 picorbc_context_new(void)
@@ -15,7 +17,7 @@ void
 picorbc_context_free(picorbc_context *cxt)
 {
   picorbc_free(cxt->filename);
-  picorbc_free(cxt->syms);
+  Scope_freeLvar((Lvar *)cxt->syms);
   picorbc_free(cxt);
 }
 
