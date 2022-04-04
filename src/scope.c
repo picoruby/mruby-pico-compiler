@@ -90,6 +90,7 @@ void Scope_freeLvar(Lvar *lvar)
 {
   if (lvar == NULL) return;
   Scope_freeLvar(lvar->next);
+  if (lvar->to_be_free) picorbc_free(lvar->name);
   picorbc_free(lvar);
 }
 
@@ -192,13 +193,14 @@ static Symbol *symbol_new(const char *value)
   return symbol;
 }
 
-Lvar *lvar_new(const char *name, int regnum)
+static Lvar *lvar_new(const char *name, int regnum)
 {
   Lvar *lvar = picorbc_alloc(sizeof(Lvar));
   lvar->regnum = regnum;
   lvar->next = NULL;
   lvar->name = name;
   lvar->len = strlen(name);
+  lvar->to_be_free = false;
   return lvar;
 }
 
@@ -281,7 +283,8 @@ LvarScopeReg Scope_lvar_findRegnum(Scope *self, const char *name)
   return (LvarScopeReg){0, 0};
 }
 
-int Scope_newLvar(Scope *self, const char *name, int newRegnum){
+void
+Scope_newLvar(Scope *self, const char *name, int newRegnum){
   Lvar *newLvar = lvar_new(name, newRegnum);
   self->nlocals++;
   if (self->lvar == NULL) {
@@ -293,7 +296,7 @@ int Scope_newLvar(Scope *self, const char *name, int newRegnum){
     }
     lvar->next = newLvar;
   }
-  return newRegnum;
+  return newLvar;
 }
 
 void Scope_push(Scope *self){

@@ -13,7 +13,7 @@
 void mrb_env_unshare(mrb_state*, struct REnv*);
 
 /* from irep.h */
-MRB_API mrb_value mrb_load_irep(mrb_state *mrb, const uint8_t *bin);
+MRB_API mrb_value mrb_load_irep_cxt(mrb_state *mrb, const uint8_t *bin, picorbc_context *cxt);
 
 /* from dump.h */
 MRB_API mrb_value mrb_load_irep_file_cxt(mrb_state*, FILE*, picorbc_context*);

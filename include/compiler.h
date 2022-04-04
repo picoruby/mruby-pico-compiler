@@ -8,7 +8,7 @@
 #include "parse_header.h"
 #include "context.h"
 
-bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *c);
+bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *cxt);
 
 ParserState *Compiler_parseInitState(uint8_t node_box_size);
 

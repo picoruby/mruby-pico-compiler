@@ -2,6 +2,7 @@
 
 #include "parse.c"
 #include <token_helper.h>
+#include <context.h>
 #include <common.h>
 #include <compiler.h>
 #include <debug.h>
@@ -76,8 +77,38 @@ printToken(Tokenizer *tokenizer, Token *token) {
      token->pos);
 }
 
-bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *c)
+static inline void
+save_context(ParserState *p, picorbc_context *cxt)
 {
+  if (!cxt) return;
+  Lvar *lvar = p->scope->lvar;
+  unsigned int nlocals;
+  for (nlocals = 0; lvar; nlocals++) {
+    if (!lvar->to_be_free) {
+      char *name = picorbc_alloc(lvar->len + 1);
+      strncpy(name, lvar->name, lvar->len + 1);
+      lvar->name = name;
+      lvar->to_be_free = true;
+    }
+    lvar = lvar->next;
+  }
+  cxt->slen = nlocals;
+  cxt->syms = (mrb_sym *)p->scope->lvar;
+  p->scope->lvar = NULL;
+}
+
+static inline void
+restore_context(ParserState *p, picorbc_context *cxt)
+{
+  if (!cxt) return;
+  p->scope->nlocals += cxt->slen;
+  p->scope->lvar = (Lvar *)cxt->syms;
+  p->scope->sp += cxt->slen;
+}
+
+bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *cxt)
+{
+  restore_context(p, cxt);
   /* unusing global_preg_cache prefers smaller RAM consumption */
   MyRegex_setup(false);
   /* using global_preg_cache prefers fewer number of step */
@@ -150,21 +181,22 @@ bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *c)
   Parse(parser, 0, "");
 FAIL:
   MyRegexCache_free();
-  bool success;
+  bool result;
   if (p->error_count == 0) {
-    success = true;
+    result = true;
     if (p->verbose) ParseShowAllNode(parser, 1);
     Generator_generate(p->scope, p->root_node_box->nodes, p->verbose);
+    save_context(p, cxt);
   } else {
     // FIXME should print prev line
     ERRORP("Syntax error at line:%d", tokenizer->line_num);
-    success = false;
+    result = false;
   }
-  if (p->verbose && success) dumpCode(p->scope);
+  if (p->verbose && result) dumpCode(p->scope);
   ParseFreeAllNode(parser);
   picorbc_free(parser);
   Tokenizer_free(tokenizer);
-  return success;
+  return result;
 }
 
 ParserState *

@@ -50,6 +50,7 @@ typedef struct lvar
   const char *name;
   struct lvar *next;
   uint8_t regnum;
+  bool to_be_free;
 } Lvar; /* will be casted as Symbol in dump.c */
 
 typedef struct lvar_scope_reg
@@ -133,10 +134,10 @@ typedef struct scope
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
   unsigned int max_sp;
-  uint16_t ilen;
-  uint16_t slen;
-  uint16_t plen;
-  uint16_t clen;
+  uint16_t ilen; /* irep length */
+  uint16_t slen; /* symbol length */
+  uint16_t plen; /* pool length */
+  uint16_t clen; /* exception handler length */
   uint16_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
@@ -179,7 +180,7 @@ int Scope_assignSymIndex(Scope *self, const char *method_name);
 
 LvarScopeReg Scope_lvar_findRegnum(Scope *self, const char *name);
 
-int Scope_newLvar(Scope *self, const char *name, int newRegnum);
+void Scope_newLvar(Scope *self, const char *name, int newRegnum);
 
 void Scope_push(Scope *self);
 

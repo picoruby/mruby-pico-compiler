@@ -1,17 +1,18 @@
 #ifndef DISABLE_MRUBY
 
 #include <string.h>
+
 #include <mrb_state/microrb.h>
 #include <debug.h>
 
 MRB_API mrb_value
-microrb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
+microrb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *cxt)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(fp, NULL, STREAM_TYPE_FILE);
   ParserState *p = Compiler_parseInitState(si->node_box_size);
-  if (Compiler_compile(p, si, c)) {
-    mrb_load_irep(mrb, p->scope->vm_code);
+  if (Compiler_compile(p, si, cxt)) {
+    mrb_load_irep_cxt(mrb, p->scope->vm_code, cxt);
   } else {
     // TODO
   }
@@ -43,7 +44,7 @@ bin_to_uint32(const uint8_t *bin)
 }
 
 mrb_value
-microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
+microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *cxt)
 {
   union {
     char b[DETECT_SIZE];
@@ -59,9 +60,9 @@ microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
   if (bufsize < sizeof(leading.h) ||
       memcmp(leading.h.binary_ident, RITE_BINARY_IDENT, sizeof(leading.h.binary_ident)) != 0 ||
       memchr(leading.b, '\0', bufsize) == NULL) {
-    //return mrb_load_exec(mrb, mrb_parse_file_continue(mrb, fp, leading.b, bufsize, c), c);
+    //return mrb_load_exec(mrb, mrb_parse_file_continue(mrb, fp, leading.b, bufsize, cxt), cxt);
     rewind(fp);
-    return microrb_load_file_cxt(mrb, fp, c);
+    return microrb_load_file_cxt(mrb, fp, cxt);
   }
   else {
 //    size_t binsize;
@@ -79,22 +80,22 @@ microrb_load_detect_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *c)
 //      /* The error is reported by mrb_load_irep_buf_cxt() */
 //    }
 //
-//    result = mrb_load_irep_buf_cxt(mrb, bin, binsize, c);
+//    result = mrb_load_irep_buf_cxt(mrb, bin, binsize, cxt);
 //    if (mrb_string_p(bin_obj)) mrb_str_resize(mrb, bin_obj, 0);
 //    return result;
     rewind(fp);
-    return mrb_load_irep_file_cxt(mrb, fp, c);
+    return mrb_load_irep_file_cxt(mrb, fp, cxt);
   }
 }
 
 MRB_API mrb_value
-microrb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *c)
+microrb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *cxt)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(NULL, (char *)str, STREAM_TYPE_MEMORY);
   ParserState *p = Compiler_parseInitState(si->node_box_size);
-  if (Compiler_compile(p, si, c)) {
-    mrb_load_irep(mrb, p->scope->vm_code);
+  if (Compiler_compile(p, si, cxt)) {
+    mrb_load_irep_cxt(mrb, p->scope->vm_code, cxt);
   } else {
     // TODO
   }

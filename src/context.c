@@ -8,9 +8,9 @@
 picorbc_context*
 picorbc_context_new(void)
 {
-  picorbc_context *c = (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
-  memset(c, 0, sizeof(picorbc_context));
-  return c;
+  picorbc_context *cxt = (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
+  memset(cxt, 0, sizeof(picorbc_context));
+  return cxt;
 }
 
 void
@@ -22,28 +22,28 @@ picorbc_context_free(picorbc_context *cxt)
 }
 
 void
-picorbc_cleanup_local_variables(picorbc_context *c)
+picorbc_cleanup_local_variables(picorbc_context *cxt)
 {
-  if (c->syms) {
-    picorbc_free(c->syms);
-    c->syms = NULL;
-    c->slen = 0;
+  if (cxt->syms) {
+    Scope_freeLvar((Lvar *)cxt->syms);
+    cxt->syms = NULL;
+    cxt->slen = 0;
   }
 }
 
 const char*
-picorbc_filename(picorbc_context *c, const char *s)
+picorbc_filename(picorbc_context *cxt, const char *s)
 {
   if (s) {
     size_t len = strlen(s);
     char *p = (char *)picorbc_alloc(len + 1);
 
     memcpy(p, s, len + 1);
-    if (c->filename) {
-      picorbc_free(c->filename);
+    if (cxt->filename) {
+      picorbc_free(cxt->filename);
     }
-    c->filename = p;
+    cxt->filename = p;
   }
-  return c->filename;
+  return cxt->filename;
 }
 
