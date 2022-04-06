@@ -1410,7 +1410,6 @@ void gen_irep(Scope *scope, Node *node)
   uint32_t bbb = setup_parameters(scope, node->cons.car);
   { /* adjustments */
     scope->sp = sp; // cancel gen_var()'s effect
-    scope->max_sp = scope->sp;
   }
   scope->irep_parameters = bbb;
   Scope_pushCode(OP_ENTER);
