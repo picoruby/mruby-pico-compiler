@@ -157,11 +157,11 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{include_dir}/ptr_size.h" => ["#{lib_dir}/ptr_size_generator", include_dir] do
-    sh "cd #{lib_dir} && ./ptr_size_generator && mv ptr_size.h #{include_dir}"
+    sh "cd #{lib_dir} && #{ENV['QEMU']} ./ptr_size_generator && mv ptr_size.h #{include_dir}"
   end
 
   file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do
-    sh "cd #{lib_dir} && cc -static -o ptr_size_generator ptr_size_generator.c"
+    sh "cd #{lib_dir} && #{cc.command} -static -o ptr_size_generator ptr_size_generator.c"
   end
 
   file objfile("#{build_dir}/src/parse") => "#{src_dir}/parse.c" do |f|
@@ -186,7 +186,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
                                   #{lib_dir}/lemon
                                   #{include_dir}/ptr_size.h) do
     require "open3"
-    cmd = "cd #{src_dir} && #{lib_dir}/lemon -p #{ENV['LEMON_MACRO']} ./parse.y"
+    cmd = "cd #{src_dir} && #{ENV['QEMU']} #{lib_dir}/lemon -p #{ENV['LEMON_MACRO']} ./parse.y"
     puts cmd
     out, err = Open3.capture3(cmd)
     puts out
