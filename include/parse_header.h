@@ -5,7 +5,7 @@
 
 #include "scope.h"
 #include "token.h"
-#ifndef PTR_SIZE
+#ifndef PICORBC_PTR_SIZE
 #include <ptr_size.h>
 #endif
 
@@ -151,8 +151,8 @@ typedef struct node_box
   Node *nodes;
 } NodeBox;
 
-#define STRING_POOL_SIZE (PTR_SIZE * 16)
-#define STRING_POOL_HEADER_SIZE (PTR_SIZE * 3)
+#define STRING_POOL_SIZE (PICORBC_PTR_SIZE * 16)
+#define STRING_POOL_HEADER_SIZE (PICORBC_PTR_SIZE * 3)
 #define STRING_POOL_POOL_SIZE (STRING_POOL_SIZE - STRING_POOL_HEADER_SIZE)
 typedef struct string_pool StringPool;
 typedef struct string_pool

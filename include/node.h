@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "parse_header.h"
-#ifndef PTR_SIZE
+#ifndef PICORBC_PTR_SIZE
 #include <ptr_size.h>
 #endif
 
