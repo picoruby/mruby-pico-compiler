@@ -24,6 +24,12 @@ end
 
 desc "cleanup"
 task :clean do
+  rm_rf "include/atom_helper.h"
+  rm_rf "include/keyword_helper.h"
+  rm_rf "include/token_helper.h"
+  rm_rf "include/tokenizer_helper.h"
+  rm_rf "include/ptr_size.h"
+  rm_rf "include/parse.h"
   rm_rf "lib/lemon"
   rm_rf "lib/ptr_size_generator"
   rm_rf "src/parse.out"
