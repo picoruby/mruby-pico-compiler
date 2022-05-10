@@ -20,9 +20,10 @@
   void print_memory(void)
   {
   #ifndef MRBC_ALLOC_LIBC
-    int total, used, free, fragment;
-    mrbc_alloc_statistics( &total, &used, &free, &fragment );
-    DEBUGP("Memory total:%d, used:%d, free:%d, fragment:%d", total, used, free, fragment );
+    struct MRBC_ALLOC_STATISTICS *stats;
+    mrbc_alloc_statistics(stats);
+    DEBUGP("Memory total:%d, used:%d, free:%d, fragment:%d",
+           stats.total, stats.used, stats.free, stats.fragmentation );
   #endif
   }
   void memcheck(void)
