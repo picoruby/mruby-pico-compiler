@@ -295,6 +295,26 @@
     return list3(atom(ATOM_unary), literal(const_neg) ,list2(atom(a), literal(s)));
   }
 
+  static void
+  local_add_f(ParserState *p, const char *a)
+  {
+    // different way from mruby...
+    LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, a);
+    if (lvar.scope_num != 0 || lvar.reg_num == 0) {
+      /* If no lvar found in the current scope */
+      Scope_newLvar(p->scope, a, p->scope->sp++);
+    }
+  }
+  static void
+  assignable(ParserState *p, Node *lhs)
+  {
+    const char *name = Node_valueName(lhs->cons.cdr->cons.car);
+    LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, name);
+    if (lvar.scope_num == 0 && lvar.reg_num == 0) {
+      Scope_newLvar(p->scope, name, p->scope->sp++);
+    }
+  }
+
   static Node*
   new_lvar(ParserState *p, const char *s)
   {
@@ -396,6 +416,7 @@
     if (Node_atomType(lhs) == ATOM_lvar) {
       LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, lhs->cons.cdr->cons.car->value.name);
       if (lvar.reg_num == 0) {
+        lhs->cons.car->atom.type = ATOM_at_ident;
         return new_fcall(p, lhs, 0);
       }
     }
@@ -555,17 +576,6 @@
     //local_resume(p, n->cons.cdr->cons.cdr->cons.car);
     n->cons.cdr->cons.cdr->cons.car = b;
     return d;
-  }
-
-  static void
-  local_add_f(ParserState *p, const char *a)
-  {
-    // different way from mruby...
-    LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, a);
-    if (lvar.scope_num != 0 || lvar.reg_num == 0) {
-      /* If no lvar found in the current scope */
-      Scope_newLvar(p->scope, a, p->scope->sp++);
-    }
   }
 
   static Node*
@@ -1327,7 +1337,10 @@ arg_rhs(A) ::= arg(B) KW_modifier_rescue arg(C).
                   A = new_mod_rescue(p, B, C);
                 }
 
-lhs ::= variable.
+lhs    ::= variable(B).
+                {
+                  assignable(p, B);
+                }
 lhs(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
                 {
                   A = new_call(p, B, STRING_ARY, C, '.');
