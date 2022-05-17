@@ -378,7 +378,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->sp - 1);
     Scope_pushCode(OP_JMPNIL);
-    Scope_pushCode(scope->sp);
+    Scope_pushCode(scope->sp--);
     jmpLabel = Scope_reserveJmpLabel(scope);
   }
   // args
