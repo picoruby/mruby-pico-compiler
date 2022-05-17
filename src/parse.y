@@ -973,6 +973,7 @@ stmt(A) ::= mlhs(B) E mrhs(C).
 stmt(A) ::= arg(B) ASSOC IDENTIFIER(C).
               {
                 Node *lhs = new_lvar(p, C);
+                assignable(p, lhs);
                 A = new_asgn(p, lhs, B);
               }
 stmt ::= expr.
@@ -1181,7 +1182,7 @@ mlhs_post(A) ::= mlhs_list(B) mlhs_item(C).
 
 mlhs_node    ::= variable(VAR).
                 {
-                  generate_lvar(p->scope, VAR);
+                  assignable(p, VAR);
                 }
 mlhs_node(A) ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET.
                 {
@@ -1362,7 +1363,10 @@ cpath(A) ::= primary_value(B) COLON2 cname(C). {
   A = new_colon2(p, B, C);
 }
 
-var_lhs ::= variable.
+var_lhs ::= variable(VAR).
+                {
+                  assignable(p, VAR);
+                }
 
 primary     ::= literal.
 primary     ::= string.
