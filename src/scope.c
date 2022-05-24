@@ -89,7 +89,7 @@ void Scope_freeLvar(Lvar *lvar)
 {
   if (lvar == NULL) return;
   Scope_freeLvar(lvar->next);
-  if (lvar->to_be_free) picorbc_free(lvar->name);
+  if (lvar->to_be_free) picorbc_free((void *)lvar->name);
   picorbc_free(lvar);
 }
 
@@ -295,7 +295,6 @@ Scope_newLvar(Scope *self, const char *name, int newRegnum){
     }
     lvar->next = newLvar;
   }
-  return newLvar;
 }
 
 void Scope_push(Scope *self){

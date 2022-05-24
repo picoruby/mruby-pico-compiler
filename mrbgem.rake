@@ -161,7 +161,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do
-    sh "cd #{lib_dir} && #{cc.command} -static -o ptr_size_generator ptr_size_generator.c"
+    sh "cd #{lib_dir} && #{cc.command} -o ptr_size_generator ptr_size_generator.c"
   end
 
   file objfile("#{build_dir}/src/parse") => "#{src_dir}/parse.c" do |f|
