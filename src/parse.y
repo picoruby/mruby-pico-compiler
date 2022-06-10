@@ -1282,6 +1282,22 @@ arg(A) ::= arg(B) TIMES arg(C).  { A = call_bin_op(B, "*", C); }
 arg(A) ::= arg(B) DIVIDE arg(C). { A = call_bin_op(B, "/", C); }
 arg(A) ::= arg(B) SURPLUS arg(C). { A = call_bin_op(B, "%", C); }
 arg(A) ::= arg(B) POW arg(C). { A = call_bin_op(B, "**", C); }
+arg(A) ::= UMINUS_NUM INTEGER(B) POW arg(C).
+                {
+                  A = call_uni_op(
+                    p,
+                    call_bin_op(new_lit(p, B, ATOM_at_int), "**", C),
+                    "-@"
+                  );
+                }
+arg(A) ::= UMINUS_NUM FLOAT(B) POW arg(C).
+                {
+                  A = call_uni_op(
+                    p,
+                    call_bin_op(new_lit(p, B, ATOM_at_float), "**", C),
+                    "-@"
+                  );
+                }
 arg(A) ::= UPLUS arg(B). { A = call_uni_op(p, B, "+@"); }
 arg(A) ::= UMINUS arg(B). { A = call_uni_op(p, B, "-@"); }
 arg(A) ::= arg(B) OR arg(C). { A = call_bin_op(B, "|", C); }
@@ -1326,11 +1342,11 @@ arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E
                   p->in_def--;
                   p->in_single--;
                 }
+arg    ::= primary.
 
 f_opt_arglist_paren ::= f_arglist_paren.
 f_opt_arglist_paren ::= none.
 
-arg ::= primary.
 
 arg_rhs    ::= arg. [OP_ASGN]
 arg_rhs(A) ::= arg(B) KW_modifier_rescue arg(C).
