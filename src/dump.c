@@ -914,7 +914,7 @@ cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n
   // TODO
   /* dump irep */
   fprintf(fp, "static const mrb_irep %s_irep_%d = {\n", name, n);
-  fprintf(fp,   "  %d,%d,\n", scope->nlocals, scope->clen);
+  fprintf(fp,   "  %d,%d,%d,\n", scope->nlocals, scope->sp, scope->clen);
   fprintf(fp,   "  MRB_IREP_STATIC,%s_iseq_%d,\n", name, n);
   if (scope->literal) {
     fprintf(fp, "  %s_pool_%d,", name, n);
