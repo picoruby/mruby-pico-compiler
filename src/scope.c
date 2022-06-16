@@ -397,10 +397,12 @@ void Scope_finish(Scope *scope)
   data[7] = (scope->sp + 1) & 0xff;
   data[8] = (scope->nlowers >> 8) & 0xff;
   data[9] = scope->nlowers & 0xff;
-  data[10] = (scope->clen >> 8) & 0xff;
-  data[11] =  scope->clen & 0xff;
-  data[12] = (scope->ilen >> 8) & 0xff;
-  data[13] =  scope->ilen & 0xff;
+  data[10] = (scope->nlowers >> 8) & 0xff;
+  data[11] =  scope->nlowers & 0xff;
+  data[12] = (scope->clen >> 8) & 0xff;
+  data[13] =  scope->clen & 0xff;
+  data[14] = (scope->ilen >> 8) & 0xff;
+  data[15] =  scope->ilen & 0xff;
 }
 
 void freeCodePool(CodePool *pool)

@@ -212,12 +212,12 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
   scope->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) {
     result->has_splat = true;
-    if (block_node) {
-      codegen(scope, block_node);
-      result->op_send = OP_SENDVB;
-    } else {
-      result->op_send = OP_SENDV;
-    }
+//    if (block_node) {
+//      codegen(scope, block_node);
+//      result->op_send = OP_SENDVB;
+//    } else {
+//      result->op_send = OP_SENDV;
+//    }
   } else {
     if (block_node) {
       if (result->is_super && result->has_block) Scope_push(scope);
@@ -2151,7 +2151,7 @@ void Generator_generate(Scope *scope, Node *root, bool verbose)
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
   int32_t codeSize = MRB_HEADER_SIZE + irepSize + MRB_FOOTER_SIZE;
   uint8_t *vmCode = picorbc_alloc(codeSize);
-  memcpy(&vmCode[0], "RITE0200", 8);
+  memcpy(&vmCode[0], "RITE0300", 8);
   vmCode[8] = (codeSize >> 24) & 0xff;
   vmCode[9] = (codeSize >> 16) & 0xff;
   vmCode[10] = (codeSize >> 8) & 0xff;

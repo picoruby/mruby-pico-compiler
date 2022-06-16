@@ -93,8 +93,8 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_MOVE\tR%d\tR%d\t", a, b);
       print_lv_ab(mrb, irep, a, b);
       break;
-    CASE(OP_LOADL16, BS);
-      goto op_loadl;
+//    CASE(OP_LOADL16, BS);
+//      goto op_loadl;
 
     CASE(OP_LOADL, BB);
     op_loadl:
@@ -252,12 +252,12 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_JMPNIL\tR%d\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
-    CASE(OP_SENDV, BB);
-      fprintf(fp, "OP_SENDV\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
-      break;
-    CASE(OP_SENDVB, BB);
-      fprintf(fp, "OP_SENDVB\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
-      break;
+//    CASE(OP_SENDV, BB);
+//      fprintf(fp, "OP_SENDV\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
+//      break;
+//    CASE(OP_SENDVB, BB);
+//      fprintf(fp, "OP_SENDVB\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
+//      break;
     CASE(OP_SEND, BBB);
       fprintf(fp, "OP_SEND\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
       break;
