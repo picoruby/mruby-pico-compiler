@@ -133,7 +133,7 @@ typedef struct scope
   Literal *literal;
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
-  uint16_t ilen; /* irep length */
+  uint32_t ilen; /* irep length */
   uint16_t slen; /* symbol length */
   uint16_t plen; /* pool length */
   uint16_t clen; /* exception handler length */

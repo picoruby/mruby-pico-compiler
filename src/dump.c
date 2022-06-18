@@ -64,13 +64,13 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
 {
   char mrb[10];
   uint32_t len = 0;
-  len += *(irep + 10) << 24;
-  len += *(irep + 11) << 16;
-  len += *(irep + 12) << 8;
-  len += *(irep + 13);
+  len += *(irep + 0) << 24;
+  len += *(irep + 1) << 16;
+  len += *(irep + 2) << 8;
+  len += *(irep + 3);
   fprintf(fp, "pos: %d / len: %u\n", *irep, len);
 
-  irep += 14; /* skip irep header */
+  irep += 16; /* skip irep header */
 
   uint8_t *opstart = irep;
 
@@ -252,12 +252,12 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_JMPNIL\tR%d\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
-//    CASE(OP_SENDV, BB);
-//      fprintf(fp, "OP_SENDV\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
-//      break;
-//    CASE(OP_SENDVB, BB);
-//      fprintf(fp, "OP_SENDVB\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
-//      break;
+    CASE(OP_SSEND, BBB);
+      fprintf(fp, "OP_SSEND\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
+      break;
+    CASE(OP_SSENDB, BBB);
+      fprintf(fp, "OP_SSENDB\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
+      break;
     CASE(OP_SEND, BBB);
       fprintf(fp, "OP_SEND\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
       break;

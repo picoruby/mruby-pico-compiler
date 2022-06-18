@@ -391,16 +391,21 @@ void Scope_finish(Scope *scope)
     data[2] = ((scope->vm_code_size >> 8) & 0xff);
     data[3] =  (scope->vm_code_size & 0xff);
   }
+  // nlocals
   data[4] = (scope->nlocals >> 8) & 0xff;
   data[5] = scope->nlocals & 0xff;
+  // nregs
   data[6] = ((scope->sp + 1) >> 8) & 0xff;
   data[7] = (scope->sp + 1) & 0xff;
+  // rlen (Children)
   data[8] = (scope->nlowers >> 8) & 0xff;
   data[9] = scope->nlowers & 0xff;
-  data[10] = (scope->nlowers >> 8) & 0xff;
-  data[11] =  scope->nlowers & 0xff;
-  data[12] = (scope->clen >> 8) & 0xff;
-  data[13] =  scope->clen & 0xff;
+  // clen (Catch handlers)
+  data[10] = (scope->clen >> 8) & 0xff;
+  data[11] =  scope->clen & 0xff;
+  // ilen (IREP length)
+  data[12] = (scope->ilen >> 24) & 0xff;
+  data[13] = (scope->ilen >> 16) & 0xff;
   data[14] = (scope->ilen >> 8) & 0xff;
   data[15] =  scope->ilen & 0xff;
 }

@@ -212,12 +212,12 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
   scope->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) {
     result->has_splat = true;
-//    if (block_node) {
-//      codegen(scope, block_node);
-//      result->op_send = OP_SENDVB;
-//    } else {
-//      result->op_send = OP_SENDV;
-//    }
+    if (block_node) {
+      codegen(scope, block_node);
+      result->op_send = OP_SENDB;
+    } else {
+      result->op_send = OP_SEND;
+    }
   } else {
     if (block_node) {
       if (result->is_super && result->has_block) Scope_push(scope);
@@ -365,9 +365,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   result.op_send = OP_SEND;
   int reg = scope->sp;
   // receiver
-  if (is_fcall) {
-    gen_self(scope);
-  } else {
+  if (!is_fcall) {
     codegen(scope, node->cons.car);
     node = node->cons.cdr;
   }
@@ -409,12 +407,26 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     Scope_pushCode(OP_LE);
     Scope_pushCode(scope->sp);
   } else {
-    Scope_pushCode(result.op_send);
+    if (is_fcall) {
+      /*
+       * OP_SEND  -> OP_SSEND
+       * OP_SENDB -> OP_SSENDB
+       */
+      Scope_pushCode(result.op_send - 2);
+    } else {
+      Scope_pushCode(result.op_send);
+    }
     Scope_pushCode(scope->sp);
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
-    if (result.op_send == OP_SEND || result.op_send == OP_SENDB)
-      Scope_pushCode(result.nargs);
+    if (result.op_send == OP_SEND || result.op_send == OP_SENDB) {
+      if (result.has_splat) {
+        // TODO: confirm this is right. Do I need this more elsewhere
+        Scope_pushCode(0xf);
+      } else {
+        Scope_pushCode(result.nargs);
+      }
+    }
   }
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
