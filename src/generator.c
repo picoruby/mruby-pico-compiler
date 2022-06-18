@@ -1451,7 +1451,7 @@ void gen_irep(Scope *scope, Node *node)
       Scope_pushCode(scope->sp);
     }
     int op = scope->current_code_pool->data[scope->current_code_pool->index - 2];
-    if (op != OP_RETURN && op != OP_RETURN_BLK) {
+    if (op != OP_RETURN) {
       Scope_pushCode(OP_RETURN);
       Scope_pushCode(scope->sp);
     }
@@ -1500,11 +1500,6 @@ void gen_def(Scope *scope, Node *node, bool is_singleton)
   Scope_pushCode(--scope->sp);
   int litIndex = Scope_newSym(scope, Node_literalName(node));
   Scope_pushCode(litIndex);
-  { //TODO: Should be ommited if subsequent OP exists
-    Scope_pushCode(OP_LOADSYM);
-    Scope_pushCode(scope->sp);
-    Scope_pushCode(litIndex);
-  }
 
   gen_irep(scope, node->cons.cdr->cons.cdr);
 }

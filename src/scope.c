@@ -395,8 +395,8 @@ void Scope_finish(Scope *scope)
   data[4] = (scope->nlocals >> 8) & 0xff;
   data[5] = scope->nlocals & 0xff;
   // nregs
-  data[6] = ((scope->sp + 1) >> 8) & 0xff;
-  data[7] = (scope->sp + 1) & 0xff;
+  data[6] = ((scope->sp + 2) >> 8) & 0xff;
+  data[7] = (scope->sp + 2) & 0xff;
   // rlen (Children)
   data[8] = (scope->nlowers >> 8) & 0xff;
   data[9] = scope->nlowers & 0xff;
