@@ -653,7 +653,7 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
       break;
     case ATOM_masgn:
-      mlhs = node->cons.cdr->cons.car;
+      //mlhs = node->cons.cdr->cons.car;
       // TODO
       ERRORP("No nested mass assigment supported!");
       break;
