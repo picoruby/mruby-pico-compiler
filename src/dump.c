@@ -64,10 +64,10 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
 {
   char mrb[10];
   uint32_t len = 0;
-  len += *(irep + 0) << 24;
-  len += *(irep + 1) << 16;
-  len += *(irep + 2) << 8;
-  len += *(irep + 3);
+  len += *(irep + 12) << 24;
+  len += *(irep + 13) << 16;
+  len += *(irep + 14) << 8;
+  len += *(irep + 15);
   fprintf(fp, "pos: %d / len: %u\n", *irep, len);
 
   irep += 16; /* skip irep header */
