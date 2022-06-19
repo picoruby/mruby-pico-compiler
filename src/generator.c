@@ -684,10 +684,18 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
     node->cons.cdr = 0;
     if (has_splat) {
       Scope_pushCode(OP_AREF);
-      Scope_pushCode(*mrhs_reg + 1);
+      bool is_lvar = false;
+      if (Node_atomType(node->cons.car) == ATOM_lvar) {
+        lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
+        if (lvar.scope_num == 0) {
+          Scope_pushCode(lvar.reg_num);
+          is_lvar = true;
+        }
+      }
+      if (!is_lvar) Scope_pushCode(*mrhs_reg + 1);
       Scope_pushCode(*mrhs_reg);
       Scope_pushCode((*gen_count)++);
-      gen_assign(scope, node, *mrhs_reg + 1);
+      if (!is_lvar) gen_assign(scope, node, *mrhs_reg + 1);
     } else if (*gen_count < nargs){
       gen_assign(scope, node, (*mrhs_reg)++);
       (*gen_count)++;
@@ -861,11 +869,6 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
       mrhs_reg += nrest;
     }
     gen_masgn_node(scope, node, total_nargs, &gen_count, &mrhs_reg, false);
-    //if (has_splat) {
-    //  Scope_pushCode(OP_MOVE);
-    //  Scope_pushCode(6);
-    //  Scope_pushCode(5);
-    //}
   }
   scope->sp--;
 }

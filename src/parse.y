@@ -308,6 +308,7 @@
   static void
   assignable(ParserState *p, Node *lhs)
   {
+    if (Node_atomType(lhs) != ATOM_lvar) return;
     const char *name = Node_valueName(lhs->cons.cdr->cons.car);
     LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, name);
     if (lvar.scope_num == 0 && lvar.reg_num == 0) {

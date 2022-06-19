@@ -17,12 +17,6 @@ class MasgnTest < PicoRubyTest
     p a, b
   RUBY
 
-  desc "RHS has only one item, LHS has a rest and a post"
-  assert_equal(<<~RUBY, "1\nnil\n[]\nnil")
-    a, b, *c, d = 1
-    p a, b, c, d
-  RUBY
-
   desc "baz should be nil"
   assert_equal(<<~RUBY, "1\n2\nnil")
     baz = true
@@ -86,6 +80,12 @@ class MasgnTest < PicoRubyTest
   RUBY
 
   if @@vm_select == :mruby
+    desc "RHS has only one item, LHS has a rest and a post"
+    assert_equal(<<~RUBY, "1\nnil\n[]\nnil")
+      a, b, *c, d = 1
+      p a, b, c, d
+    RUBY
+
     desc "RHS has only one item which is an array, LHS has a rest and a post"
     assert_equal(<<~RUBY, "0\n[]\n1")
       ary = [0, 1]
