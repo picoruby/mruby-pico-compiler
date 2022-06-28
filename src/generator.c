@@ -406,6 +406,9 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   } else if (strcmp(method_name, "<=") == 0) {
     Scope_pushCode(OP_LE);
     Scope_pushCode(scope->sp);
+  } else if (strcmp(method_name, "[]") == 0) {
+    Scope_pushCode(OP_GETIDX);
+    Scope_pushCode(scope->sp);
   } else {
     if (is_fcall) {
       /*

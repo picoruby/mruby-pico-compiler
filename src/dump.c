@@ -264,6 +264,9 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
     CASE(OP_SENDB, BBB);
       fprintf(fp, "OP_SENDB\tR%d\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
+    CASE(OP_GETIDX, B);
+      fprintf(fp, "OP_GETIDX\tR%d\t(R%d)", a, a + 1);
+      break;
     CASE(OP_CALL, Z);
       fprintf(fp, "OP_CALL\n");
       break;
