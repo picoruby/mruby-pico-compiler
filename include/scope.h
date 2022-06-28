@@ -5,7 +5,7 @@
 
 #define MRB_HEADER_SIZE  32
 #define MRB_FOOTER_SIZE   8
-#define IREP_HEADER_SIZE 14
+#define IREP_HEADER_SIZE 16
 
 typedef enum literal_type
 {
@@ -124,7 +124,7 @@ typedef struct scope
   Scope *next;
   bool lvar_top;
   uint16_t next_lower_number;
-  unsigned int nlowers;
+  uint16_t nlowers;  /* irep.rlen in mruby/c (num of child IREP block) */
   CodePool *first_code_pool;
   CodePool *current_code_pool;
   unsigned int nlocals;
@@ -133,7 +133,7 @@ typedef struct scope
   Literal *literal;
   GenLiteral *gen_literal; /* Exceptional literals in generator */
   unsigned int sp;
-  uint16_t ilen; /* irep length */
+  uint32_t ilen; /* irep length */
   uint16_t slen; /* symbol length */
   uint16_t plen; /* pool length */
   uint16_t clen; /* exception handler length */

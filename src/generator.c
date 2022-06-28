@@ -214,9 +214,9 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
     result->has_splat = true;
     if (block_node) {
       codegen(scope, block_node);
-      result->op_send = OP_SENDVB;
+      result->op_send = OP_SENDB;
     } else {
-      result->op_send = OP_SENDV;
+      result->op_send = OP_SEND;
     }
   } else {
     if (block_node) {
@@ -365,9 +365,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   result.op_send = OP_SEND;
   int reg = scope->sp;
   // receiver
-  if (is_fcall) {
-    gen_self(scope);
-  } else {
+  if (!is_fcall) {
     codegen(scope, node->cons.car);
     node = node->cons.cdr;
   }
@@ -408,13 +406,30 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   } else if (strcmp(method_name, "<=") == 0) {
     Scope_pushCode(OP_LE);
     Scope_pushCode(scope->sp);
+  } else if (strcmp(method_name, "[]") == 0) {
+    Scope_pushCode(OP_GETIDX);
+    Scope_pushCode(scope->sp);
   } else {
-    Scope_pushCode(result.op_send);
+    if (is_fcall) {
+      /*
+       * OP_SEND  -> OP_SSEND
+       * OP_SENDB -> OP_SSENDB
+       */
+      Scope_pushCode(result.op_send - 2);
+    } else {
+      Scope_pushCode(result.op_send);
+    }
     Scope_pushCode(scope->sp);
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
-    if (result.op_send == OP_SEND || result.op_send == OP_SENDB)
-      Scope_pushCode(result.nargs);
+    if (result.op_send == OP_SEND || result.op_send == OP_SENDB) {
+      if (result.has_splat) {
+        // TODO: confirm this is right. Do I need this more elsewhere
+        Scope_pushCode(0xf);
+      } else {
+        Scope_pushCode(result.nargs);
+      }
+    }
   }
   if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
 }
@@ -641,7 +656,7 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
       break;
     case ATOM_masgn:
-      mlhs = node->cons.cdr->cons.car;
+      //mlhs = node->cons.cdr->cons.car;
       // TODO
       ERRORP("No nested mass assigment supported!");
       break;
@@ -672,10 +687,18 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
     node->cons.cdr = 0;
     if (has_splat) {
       Scope_pushCode(OP_AREF);
-      Scope_pushCode(*mrhs_reg + 1);
+      bool is_lvar = false;
+      if (Node_atomType(node->cons.car) == ATOM_lvar) {
+        lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
+        if (lvar.scope_num == 0) {
+          Scope_pushCode(lvar.reg_num);
+          is_lvar = true;
+        }
+      }
+      if (!is_lvar) Scope_pushCode(*mrhs_reg + 1);
       Scope_pushCode(*mrhs_reg);
       Scope_pushCode((*gen_count)++);
-      gen_assign(scope, node, *mrhs_reg + 1);
+      if (!is_lvar) gen_assign(scope, node, *mrhs_reg + 1);
     } else if (*gen_count < nargs){
       gen_assign(scope, node, (*mrhs_reg)++);
       (*gen_count)++;
@@ -849,11 +872,6 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
       mrhs_reg += nrest;
     }
     gen_masgn_node(scope, node, total_nargs, &gen_count, &mrhs_reg, false);
-    //if (has_splat) {
-    //  Scope_pushCode(OP_MOVE);
-    //  Scope_pushCode(6);
-    //  Scope_pushCode(5);
-    //}
   }
   scope->sp--;
 }
@@ -1439,7 +1457,7 @@ void gen_irep(Scope *scope, Node *node)
       Scope_pushCode(scope->sp);
     }
     int op = scope->current_code_pool->data[scope->current_code_pool->index - 2];
-    if (op != OP_RETURN && op != OP_RETURN_BLK) {
+    if (op != OP_RETURN) {
       Scope_pushCode(OP_RETURN);
       Scope_pushCode(scope->sp);
     }
@@ -1488,11 +1506,6 @@ void gen_def(Scope *scope, Node *node, bool is_singleton)
   Scope_pushCode(--scope->sp);
   int litIndex = Scope_newSym(scope, Node_literalName(node));
   Scope_pushCode(litIndex);
-  { //TODO: Should be ommited if subsequent OP exists
-    Scope_pushCode(OP_LOADSYM);
-    Scope_pushCode(scope->sp);
-    Scope_pushCode(litIndex);
-  }
 
   gen_irep(scope, node->cons.cdr->cons.cdr);
 }
@@ -2151,7 +2164,7 @@ void Generator_generate(Scope *scope, Node *root, bool verbose)
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
   int32_t codeSize = MRB_HEADER_SIZE + irepSize + MRB_FOOTER_SIZE;
   uint8_t *vmCode = picorbc_alloc(codeSize);
-  memcpy(&vmCode[0], "RITE0200", 8);
+  memcpy(&vmCode[0], "RITE0300", 8);
   vmCode[8] = (codeSize >> 24) & 0xff;
   vmCode[9] = (codeSize >> 16) & 0xff;
   vmCode[10] = (codeSize >> 8) & 0xff;

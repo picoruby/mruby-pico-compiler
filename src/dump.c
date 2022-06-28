@@ -64,13 +64,13 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
 {
   char mrb[10];
   uint32_t len = 0;
-  len += *(irep + 10) << 24;
-  len += *(irep + 11) << 16;
-  len += *(irep + 12) << 8;
-  len += *(irep + 13);
+  len += *(irep + 12) << 24;
+  len += *(irep + 13) << 16;
+  len += *(irep + 14) << 8;
+  len += *(irep + 15);
   fprintf(fp, "pos: %d / len: %u\n", *irep, len);
 
-  irep += 14; /* skip irep header */
+  irep += 16; /* skip irep header */
 
   uint8_t *opstart = irep;
 
@@ -93,8 +93,8 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_MOVE\tR%d\tR%d\t", a, b);
       print_lv_ab(mrb, irep, a, b);
       break;
-    CASE(OP_LOADL16, BS);
-      goto op_loadl;
+//    CASE(OP_LOADL16, BS);
+//      goto op_loadl;
 
     CASE(OP_LOADL, BB);
     op_loadl:
@@ -252,23 +252,26 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_JMPNIL\tR%d\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
-    CASE(OP_SENDV, BB);
-      fprintf(fp, "OP_SENDV\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
+    CASE(OP_SSEND, BBB);
+      fprintf(fp, "OP_SSEND\tR%d\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
-    CASE(OP_SENDVB, BB);
-      fprintf(fp, "OP_SENDVB\tR%d\t:%s\n", a, pico_mrb_sym_dump(mrb, b));
+    CASE(OP_SSENDB, BBB);
+      fprintf(fp, "OP_SSENDB\tR%d\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_SEND, BBB);
-      fprintf(fp, "OP_SEND\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SEND\tR%d\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_SENDB, BBB);
-      fprintf(fp, "OP_SENDB\tR%d\t:%s\t%d\n", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SENDB\tR%d\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
+      break;
+    CASE(OP_GETIDX, B);
+      fprintf(fp, "OP_GETIDX\tR%d\t(R%d)", a, a + 1);
       break;
     CASE(OP_CALL, Z);
       fprintf(fp, "OP_CALL\n");
       break;
     CASE(OP_SUPER, BB);
-      fprintf(fp, "OP_SUPER\tR%d\t%d\n", a, b);
+      fprintf(fp, "OP_SUPER\tR%d\t%d", a, b);
       break;
     CASE(OP_ARGARY, BS);
       fprintf(fp, "OP_ARGARY\tR%d\t%d:%d:%d:%d (%d)", a,
@@ -280,7 +283,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ENTER, W);
-      fprintf(fp, "OP_ENTER\t%d:%d:%d:%d:%d:%d:%d\n",
+      fprintf(fp, "OP_ENTER\t%d:%d:%d:%d:%d:%d:%d",
              PICORB_ASPEC_REQ(a),
              PICORB_ASPEC_OPT(a),
              PICORB_ASPEC_REST(a),
@@ -322,23 +325,14 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LAMBDA, BB);
-      fprintf(fp, "OP_LAMBDA\tR%d\tI(%d:%p)\n", a, b, NULL);
+      fprintf(fp, "OP_LAMBDA\tR%d\tI(%d:%p)", a, b, NULL);
       break;
     CASE(OP_BLOCK, BB);
-      fprintf(fp, "OP_BLOCK\tR%d\tI(%d:%p)\n", a, b, NULL);
+      fprintf(fp, "OP_BLOCK\tR%d\tI(%d:%p)", a, b, NULL);
       break;
     CASE(OP_METHOD, BB);
-      fprintf(fp, "OP_METHOD\tR%d\tI(%d:%p)\n", a, b, NULL);
+      fprintf(fp, "OP_METHOD\tR%d\tI(%d:%p)", a, b, NULL);
       break;
-//    CASE(OP_LAMBDA16, BS);
-//      fprintf(fp, "OP_LAMBDA\tR%d\tI(%d:%p)\n", a, b, NULL);
-//      break;
-//    CASE(OP_BLOCK16, BS);
-//      fprintf(fp, "OP_BLOCK\tR%d\tI(%d:%p)\n", a, b, NULL);
-//      break;
-//    CASE(OP_METHOD16, BS);
-//      fprintf(fp, "OP_METHOD\tR%d\tI(%d:%p)\n", a, b, NULL);
-//      break;
     CASE(OP_RANGE_INC, B);
       fprintf(fp, "OP_RANGE_INC\tR%d\n", a);
       break;
@@ -423,8 +417,6 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_INTERN\tR%d", a);
       print_lv_a(mrb, irep, a);
       break;
-//    CASE(OP_STRING16, BS);
-//      goto op_string;
     CASE(OP_STRING, BB);
 //    op_string:
 //      if ((irep->pool[b].tt & IREP_TT_NFLAG) == 0) {
