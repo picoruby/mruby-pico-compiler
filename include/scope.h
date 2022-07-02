@@ -132,7 +132,8 @@ typedef struct scope
   Lvar *lvar;
   Literal *literal;
   GenLiteral *gen_literal; /* Exceptional literals in generator */
-  unsigned int sp;
+  uint16_t sp;
+  uint16_t rlen; /* reg length */
   uint32_t ilen; /* irep length */
   uint16_t slen; /* symbol length */
   uint16_t plen; /* pool length */
@@ -180,6 +181,8 @@ int Scope_assignSymIndex(Scope *self, const char *method_name);
 LvarScopeReg Scope_lvar_findRegnum(Scope *self, const char *name);
 
 void Scope_newLvar(Scope *self, const char *name, int newRegnum);
+
+void Scope_setSp(Scope *self, uint16_t sp);
 
 void Scope_push(Scope *self);
 

@@ -385,7 +385,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     gen_values(scope, node, &result);
   }
   const char *method_name = Node_literalName(node->cons.car->cons.cdr);
-  scope->sp = reg;
+  Scope_setSp(scope, reg);
   if (method_name[1] == '\0' && strchr("><+-*/", method_name[0]) != NULL) {
     switch (method_name[0]) {
       case '>': Scope_pushCode(OP_GT); break;
@@ -449,15 +449,15 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
     int total_nargs = 0;
     if (result.has_splat) {
       total_nargs = count_args(scope, node);
-      scope->sp = sp + total_nargs;
+      Scope_setSp(scope, sp + total_nargs);
     } else {
       total_nargs = result.nargs;
     }
     gen_masgn_2(scope, total_nargs, mlhs, result.has_splat);
-    scope->sp = sp + result.nargs;
+    Scope_setSp(scope, sp + result.nargs);
   }
   if (result.has_splat) {
-    scope->sp = sp;
+    Scope_setSp(scope, sp);
   } else if (result.nargs == 0) {
     Scope_pushCode(OP_ARRAY);
     Scope_pushCode(scope->sp);
@@ -502,7 +502,7 @@ void gen_hash(Scope *scope, Node *node)
       }
       Scope_pushCode(reg);
       Scope_pushCode(PICORUBY_HASH_SPLIT_COUNT);
-      scope->sp = reg + 1;
+      Scope_setSp(scope, reg + 1);
       split = true;
     }
   }
@@ -522,7 +522,7 @@ void gen_hash(Scope *scope, Node *node)
       Scope_pushCode(nassocs);
     }
   }
-  scope->sp = reg;
+  Scope_setSp(scope, reg);
 }
 
 void gen_var(Scope *scope, Node *node)
@@ -642,18 +642,28 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
         gen_values(scope, call_node, &result);
       }
       const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
-      if (strcmp(method_name, "[]")) Scope_push(scope);
+      bool is_call_name_at_ary = false;
+      if (!strcmp(method_name, "[]")) {
+        is_call_name_at_ary = true;
+      } else {
+        Scope_push(scope);
+      }
       Scope_pushCode(OP_MOVE);
       Scope_pushCode(scope->sp);
       scope->sp -= result.nargs + 2;
       Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       Scope_push(scope);
-      Scope_pushCode(OP_SEND);
-      Scope_pushCode(scope->sp);
-      int symIndex = Scope_assignSymIndex(scope, method_name);
-      Scope_pushCode(symIndex);
-      Scope_pushCode(result.nargs + 1);
-      mrhs_reg ? (scope->sp -= 2) : (scope->sp = reg);
+      if (is_call_name_at_ary) {
+        Scope_pushCode(OP_SETIDX);
+        Scope_pushCode(scope->sp);
+      } else {
+        Scope_pushCode(OP_SEND);
+        Scope_pushCode(scope->sp);
+        int symIndex = Scope_assignSymIndex(scope, method_name);
+        Scope_pushCode(symIndex);
+        Scope_pushCode(result.nargs + 1);
+      }
+      mrhs_reg ? (scope->sp -= 2) : Scope_setSp(scope, reg);
       break;
     case ATOM_masgn:
       //mlhs = node->cons.cdr->cons.car;
@@ -741,17 +751,27 @@ void gen_masgn_node(Scope *scope, Node *node, int nargs, int *gen_count, int *mr
             gen_values(scope, call_node, &result);
           }
           const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
-          if (strcmp(method_name, "[]")) Scope_push(scope);
+          bool is_call_name_at_ary = false;
+          if (!strcmp(method_name, "[]")) {
+            is_call_name_at_ary = true;
+          } else {
+            Scope_push(scope);
+          }
           Scope_pushCode(OP_MOVE);
           Scope_pushCode(scope->sp);
           scope->sp -= result.nargs + 2;
           Scope_pushCode(scope->sp);
           Scope_push(scope);
-          Scope_pushCode(OP_SEND);
-          Scope_pushCode(scope->sp);
-          int symIndex = Scope_assignSymIndex(scope, method_name);
-          Scope_pushCode(symIndex);
-          Scope_pushCode(result.nargs + 1);
+          if (is_call_name_at_ary) {
+            Scope_pushCode(OP_SETIDX);
+            Scope_pushCode(scope->sp);
+          } else {
+            Scope_pushCode(OP_SEND);
+            Scope_pushCode(scope->sp);
+            int symIndex = Scope_assignSymIndex(scope, method_name);
+            Scope_pushCode(symIndex);
+            Scope_pushCode(result.nargs + 1);
+          }
           break;
         default:
           FATALP("This should not happen!");
@@ -804,7 +824,7 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
       Scope_pushCode(mrhs_reg + 1);
       Scope_pushCode(npre);
       Scope_pushCode(npost);
-      scope->sp = mrhs_reg + 1;
+      Scope_setSp(scope, mrhs_reg + 1);
     } else {
       Scope_pushCode(OP_ARRAY2);
       Scope_pushCode(scope->sp);
@@ -847,17 +867,27 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat)
           gen_values(scope, call_node, &result);
         }
         const char *method_name = Node_literalName(call_node->cons.car->cons.cdr);
-        if (strcmp(method_name, "[]")) Scope_push(scope);
+        bool is_call_name_at_ary = false;
+        if (!strcmp(method_name, "[]")) {
+          is_call_name_at_ary = true;
+        } else {
+          Scope_push(scope);
+        }
         Scope_pushCode(OP_MOVE);
         Scope_pushCode(scope->sp);
         scope->sp -= result.nargs + 2;
         Scope_pushCode(scope->sp);
         Scope_push(scope);
-        Scope_pushCode(OP_SEND);
-        Scope_pushCode(scope->sp);
-        int symIndex = Scope_assignSymIndex(scope, method_name);
-        Scope_pushCode(symIndex);
-        Scope_pushCode(result.nargs + 1);
+        if (is_call_name_at_ary) {
+          Scope_pushCode(OP_SETIDX);
+          Scope_pushCode(scope->sp);
+        } else {
+          Scope_pushCode(OP_SEND);
+          Scope_pushCode(scope->sp);
+          int symIndex = Scope_assignSymIndex(scope, method_name);
+          Scope_pushCode(symIndex);
+          Scope_pushCode(result.nargs + 1);
+        }
       default:
         FATALP("Should not happen!");
     }
@@ -943,6 +973,7 @@ void gen_op_assign(Scope *scope, Node *node)
         Scope_pushCode(OP_MOVE);
         Scope_pushCode(scope->sp);
         Scope_pushCode(scope->sp - 2);
+        /* op assign doesn't use OP_SETIDX */
         Scope_pushCode(OP_SEND);
         Scope_pushCode(scope->sp - 1);
         Scope_pushCode(Scope_newSym(scope, "[]"));
@@ -1044,7 +1075,8 @@ void gen_op_assign(Scope *scope, Node *node)
       }
       Scope_pushCode(scope->sp);
       GenValuesResult result = {0};
-      if (!is_call_name_at_ary) gen_values(scope, node->cons.car->cons.cdr->cons.cdr, &result);
+      if (!is_call_name_at_ary)
+        gen_values(scope, node->cons.car->cons.cdr->cons.cdr, &result);
       /* exec assignment .[]= or .attr= */
       Scope_pushCode(OP_SEND);
       scope->sp--;
@@ -1100,7 +1132,7 @@ void gen_dstr(Scope *scope, Node *node)
     if (count != num) {
       /* TRICKY (I'm not sure if this is a correct way) */
       Scope_pushCode(OP_STRCAT);
-      scope->sp = sp;
+      Scope_setSp(scope, sp);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
     }
@@ -1132,7 +1164,7 @@ void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[
   } else {
     return;
   }
-  scope->sp = cond_reg;
+  Scope_setSp(scope, cond_reg);
   const char *method;
   if (Node_atomType(node->cons.car) == ATOM_splat) {
     method = "__case_eqq";
@@ -1152,7 +1184,7 @@ void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[
   Scope_pushCode(OP_JMPIF);
   Scope_pushCode(cond_reg);
   *label_true = Scope_reserveJmpLabel(scope);
-  scope->sp = cond_reg;
+  Scope_setSp(scope, cond_reg);
 }
 
 void gen_case(Scope *scope, Node *node)
@@ -1192,7 +1224,7 @@ void gen_case(Scope *scope, Node *node)
     for (int j = 0; j < args_count; j++)
       Scope_backpatchJmpLabel(label_true_array[j], scope->vm_code_size);
     { /* inside when */
-      scope->sp = cond_reg;
+      Scope_setSp(scope, cond_reg);
       int16_t current_vm_code_size = scope->vm_code_size;
       /* stmts_add */
       codegen(scope, a_case->cons.cdr->cons.cdr->cons.car);
@@ -1228,7 +1260,7 @@ void gen_case(Scope *scope, Node *node)
   }
   for (i = 0; i < when_count; i++)
     Scope_backpatchJmpLabel(label_end_array[i], scope->vm_code_size);
-  scope->sp = start_reg;
+  Scope_setSp(scope, start_reg);
   Scope_pushCode(OP_MOVE);
   Scope_pushCode(scope->sp++);
   Scope_pushCode(scope->sp--);
@@ -1248,7 +1280,7 @@ void gen_if(Scope *scope, Node *node)
   JmpLabel *label_end = Scope_reserveJmpLabel(scope);
   /* condition false */
   Scope_backpatchJmpLabel(label_false, scope->vm_code_size);
-  scope->sp = start_reg;
+  Scope_setSp(scope, start_reg);
   if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_NONE) {
   // FIXME
   //if (node->cons.cdr->cons.cdr->cons.cdr == NULL) {
@@ -1258,7 +1290,7 @@ void gen_if(Scope *scope, Node *node)
   } else {
     /* if_tail */
     codegen(scope, node->cons.cdr->cons.cdr->cons.car);
-    scope->sp = start_reg;
+    Scope_setSp(scope, start_reg);
   }
   /* right after KW_end */
   Scope_backpatchJmpLabel(label_end, scope->vm_code_size);
@@ -1427,7 +1459,7 @@ void gen_irep(Scope *scope, Node *node)
   int sp = scope->sp;
   uint32_t bbb = setup_parameters(scope, node->cons.car);
   { /* adjustments */
-    scope->sp = sp; // cancel gen_var()'s effect
+    Scope_setSp(scope, sp); // cancel gen_var()'s effect
   }
   scope->irep_parameters = bbb;
   Scope_pushCode(OP_ENTER);
@@ -1694,7 +1726,7 @@ void gen_return(Scope *scope, Node *node)
   if (node->cons.cdr->cons.car) {
     int reg = scope->sp;
     codegen(scope, node->cons.cdr->cons.car);
-    scope->sp = reg;
+    Scope_setSp(scope, reg);
   } else {
     Scope_pushCode(OP_LOADNIL);
     Scope_pushCode(scope->sp);

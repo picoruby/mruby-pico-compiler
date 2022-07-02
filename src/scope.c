@@ -38,6 +38,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->first_code_pool->index = IREP_HEADER_SIZE;
   self->nlocals = 1;
   self->sp = 1;
+  self->rlen = 1;
   return self;
 }
 
@@ -297,8 +298,14 @@ Scope_newLvar(Scope *self, const char *name, int newRegnum){
   }
 }
 
+void Scope_setSp(Scope *self, uint16_t sp){
+  self->sp = sp;
+  if (self->rlen < self->sp) self->rlen = self->sp;
+}
+
 void Scope_push(Scope *self){
   self->sp++;
+  if (self->rlen < self->sp) self->rlen = self->sp;
 }
 
 int scope_codeSize(CodePool *code_pool)
@@ -395,8 +402,8 @@ void Scope_finish(Scope *scope)
   data[4] = (scope->nlocals >> 8) & 0xff;
   data[5] = scope->nlocals & 0xff;
   // nregs
-  data[6] = ((scope->sp + 2) >> 8) & 0xff;
-  data[7] = (scope->sp + 2) & 0xff;
+  data[6] = ((scope->rlen) >> 8) & 0xff;
+  data[7] = (scope->rlen) & 0xff;
   // rlen (Children)
   data[8] = (scope->nlowers >> 8) & 0xff;
   data[9] = scope->nlowers & 0xff;
