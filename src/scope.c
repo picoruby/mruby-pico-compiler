@@ -39,6 +39,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->nlocals = 1;
   self->sp = 1;
   self->rlen = 1;
+  self->exc_handler = NULL;
   return self;
 }
 
