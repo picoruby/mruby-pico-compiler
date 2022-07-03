@@ -440,8 +440,12 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
 {
   uint8_t prev_gen_array_status = scope->gen_array_status;
   uint8_t prev_gen_array_count = scope->gen_array_count;
+  uint16_t prev_nargs_before_splat = scope->nargs_before_splat;
+  uint16_t prev_nargs_after_splat = scope->nargs_after_splat;
   scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
   scope->gen_array_count = 0;
+  scope->nargs_before_splat = 0;
+  scope->nargs_after_splat = 0;
   int sp = scope->sp;
   GenValuesResult result = {0};
   if (node->cons.cdr->cons.car) gen_values(scope, node, &result);
@@ -479,6 +483,8 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
   }
   scope->gen_array_status = prev_gen_array_status;
   scope->gen_array_count = prev_gen_array_count;
+  scope->nargs_before_splat = prev_nargs_before_splat;
+  scope->nargs_after_splat = prev_nargs_after_splat;
 }
 
 void gen_hash(Scope *scope, Node *node)
@@ -1979,7 +1985,9 @@ void codegen(Scope *scope, Node *tree)
       gen_call(scope, tree->cons.cdr, false, true);
       break;
     case ATOM_args_add:
+      scope->nargs_added++;
       codegen(scope, tree->cons.cdr);
+      scope->nargs_added--;
       if (scope->gen_array_status > GEN_ARRAY_STATUS_NONE) {
         if (scope->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
           scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT - 1;
@@ -2004,8 +2012,12 @@ void codegen(Scope *scope, Node *tree)
         )
       {
         scope->nargs_before_splat = 0;
-        Scope_pushCode(OP_ARYPUSH);
-        Scope_pushCode(--scope->sp);
+        scope->nargs_after_splat++;
+        if (scope->nargs_added == 0) {
+          Scope_pushCode(OP_ARYPUSH);
+          Scope_pushCode(scope->sp - scope->nargs_after_splat);
+          Scope_pushCode(scope->nargs_after_splat);
+        }
       }
       Scope_push(scope);
       break;

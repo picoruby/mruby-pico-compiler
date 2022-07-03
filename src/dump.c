@@ -393,11 +393,11 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_ab(mrb, irep, a, b);
       break;
     CASE(OP_ARYCAT, B);
-      fprintf(fp, "OP_ARYCAT\tR%d\t", a);
+      fprintf(fp, "OP_ARYCAT\tR%d\t(R%d)\t", a, a+1);
       print_lv_a(mrb, irep, a);
       break;
-    CASE(OP_ARYPUSH, B);
-      fprintf(fp, "OP_ARYPUSH\tR%d\t", a);
+    CASE(OP_ARYPUSH, BB);
+      fprintf(fp, "OP_ARYPUSH\tR%d\t%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ARYDUP, B);
