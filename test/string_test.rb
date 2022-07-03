@@ -26,4 +26,9 @@ class StringTest < PicoRubyTest
     puts s[2, 0]
   RUBY
 
+  desc "binary"
+  assert_equal(<<~'RUBY', "1")
+    p "\x00".size
+  RUBY
+
 end
