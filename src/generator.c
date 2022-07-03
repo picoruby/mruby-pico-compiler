@@ -1676,15 +1676,21 @@ void gen_super_bb(Scope *scope)
 void gen_super(Scope *scope, Node *node, bool zsuper)
 {
   Scope_push(scope);
-  Scope_pushCode(OP_ARGARY);
-  Scope_pushCode(scope->sp);
-  gen_super_bb(scope);
   GenValuesResult result = {0};
   result.is_super = true;
   gen_values(scope, node, &result);
-  if (!result.has_block && !result.has_block_arg && !zsuper) {
-    Scope_pushCode(OP_LOADNIL);
+  if (zsuper && scope->irep_parameters > 1) {
+    Scope_pushCode(OP_ARGARY);
     Scope_pushCode(scope->sp);
+    gen_super_bb(scope);
+  } else {
+    if (!result.has_block && !result.has_block_arg) {
+      Scope_pushCode(OP_MOVE);
+      Scope_pushCode(scope->sp);
+      Lvar *lvar = scope->lvar;
+      while (lvar->next) lvar = lvar->next;
+      Scope_pushCode(lvar->regnum); // block var
+    }
   }
   if (!result.has_splat) {
     scope->sp -= result.nargs;
@@ -1698,8 +1704,8 @@ void gen_super(Scope *scope, Node *node, bool zsuper)
     Scope_pushCode(result.nargs);
   } else {
     Scope_pushCode(--scope->sp);
-    if (result.has_splat || zsuper) {
-      Scope_pushCode(127);
+    if (scope->irep_parameters > 1) {
+      Scope_pushCode(15);
     } else {
       Scope_pushCode(result.nargs);
     }
