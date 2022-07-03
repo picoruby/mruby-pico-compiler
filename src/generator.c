@@ -406,7 +406,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
   } else if (strcmp(method_name, "<=") == 0) {
     Scope_pushCode(OP_LE);
     Scope_pushCode(scope->sp);
-  } else if (strcmp(method_name, "[]") == 0) {
+  } else if (strcmp(method_name, "[]") == 0 && result.nargs == 1) {
     Scope_pushCode(OP_GETIDX);
     Scope_pushCode(scope->sp);
   } else {
@@ -659,7 +659,7 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       scope->sp -= result.nargs + 2;
       Scope_pushCode(mrhs_reg ? mrhs_reg : scope->sp);
       Scope_push(scope);
-      if (is_call_name_at_ary) {
+      if (is_call_name_at_ary && result.nargs == 1) {
         Scope_pushCode(OP_SETIDX);
         Scope_pushCode(scope->sp);
       } else {
