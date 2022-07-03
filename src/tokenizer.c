@@ -339,6 +339,7 @@ retry:
               self->pos++;
               if (Regex_match3(&(self->line[self->pos]), "^([0-9a-fA-F]+)", regexResult)) {
                 regexResult[0].value[2] = '\0'; /* maximum 2 digits */
+                if (regexResult[0].value[1] != '\0') self->pos++;
                 c[0] = strtol(regexResult[0].value, NULL, 16);
                 if (c[0] == '\0') REPLACE_NULL_PICORUBY;
               } else {
