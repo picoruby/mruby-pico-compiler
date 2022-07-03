@@ -33,13 +33,17 @@ class NamespaceTest < PicoRubyTest
     RUBY
 
     desc "name space fail"
-    assert_equal(<<~RUBY, "") # TODO: rescue
+    assert_equal(<<~RUBY, "NameError")
       module A
         module B
           FOO = :foo
         end
       end
-      p A::FOO
+      begin
+        A::FOO
+      rescue => e
+        puts e.class
+      end
     RUBY
 
   end
