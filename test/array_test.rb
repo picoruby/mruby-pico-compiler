@@ -21,4 +21,17 @@ class ArrayTest < PicoRubyTest
     p ary[66]
     puts ary.size
   RUBY
+
+  desc "getter [x,y]"
+  assert_equal(<<~RUBY, "[2, 3]")
+    ary = [0,1,2,3]
+    p ary[2, 3]
+  RUBY
+
+  desc "setter [x,y]"
+  assert_equal(<<~RUBY, "[0, 1, 2, 3, 44]")
+    ary = [0,1,2,3]
+    ary[4, 10] = 44
+    p ary
+  RUBY
 end
