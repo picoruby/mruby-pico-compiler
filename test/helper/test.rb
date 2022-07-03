@@ -35,7 +35,8 @@ class PicoRubyTest
 
   def test
     puts 'Start test'
-    Dir.glob(File.expand_path('../../*_test.rb', __FILE__)).each do |file|
+    file = "../../#{ENV['FILE'] || '*_test.rb'}"
+    Dir.glob(File.expand_path(file, __FILE__)).each do |file|
       @@filename = File.basename(file)
       load file
       @@pending = false
