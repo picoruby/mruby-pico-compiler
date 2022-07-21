@@ -1143,6 +1143,7 @@ void gen_dstr(Scope *scope, Node *node)
       Scope_push(scope);
     }
   }
+  scope->sp--;
 }
 
 void gen_and_or(Scope *scope, Node *node, int opcode)

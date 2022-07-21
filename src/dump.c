@@ -431,7 +431,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_STRCAT, B);
-      fprintf(fp, "OP_STRCAT\tR%d\t", a);
+      fprintf(fp, "OP_STRCAT\tR%d\t(R%d)\t", a, a + 1);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_HASH, BB);
