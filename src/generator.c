@@ -1752,7 +1752,7 @@ void write_exc_handler(uint8_t *record, uint32_t value)
 {
   record[0] = (value & 0xFF000000) >> 24;
   record[1] = (value & 0xFF0000) >> 16;
-  record[2] = (value & 0xFF) >> 8;
+  record[2] = (value & 0xFF00) >> 8;
   record[3] =  value & 0xFF;
 }
 

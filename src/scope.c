@@ -346,7 +346,7 @@ size_t replace_picoruby_null(char *value)
 
 void Scope_finish(Scope *scope)
 {
-  scope->ilen = scope->vm_code_size;
+  scope->ilen = (uint32_t)scope->vm_code_size;
   ExcHandler *tmp;
   ExcHandler *exc_handler = scope->exc_handler;
   for (int i = 0; i < scope->clen; i++) {
@@ -446,7 +446,7 @@ JmpLabel *Scope_reserveJmpLabel(Scope *scope)
   return label;
 }
 
-void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position)
+void Scope_backpatchJmpLabel(JmpLabel *label, uint32_t position)
 {
   uint8_t *data = (uint8_t *)label->address;
   data[0] = ((position - label->pos) >> 8) & 0xff;

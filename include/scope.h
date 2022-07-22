@@ -72,7 +72,7 @@ typedef struct code_pool
 
 typedef struct retry_stack
 {
-  uint16_t pos;
+  uint32_t pos;
   struct retry_stack *prev;
 } RetryStack;
 
@@ -80,8 +80,8 @@ typedef struct break_stack
 {
   void *point;
   struct break_stack *prev;
-  uint16_t next_pos;
-  uint16_t redo_pos;
+  uint32_t next_pos;
+  uint32_t redo_pos;
 } BreakStack;
 
 /*
@@ -98,7 +98,7 @@ typedef struct assign_symbol
 typedef struct jmp_label
 {
   void *address;
-  uint16_t pos;
+  uint32_t pos;
 } JmpLabel;
 
 typedef struct backpatch
@@ -138,7 +138,7 @@ typedef struct scope
   uint16_t slen; /* symbol length */
   uint16_t plen; /* pool length */
   uint16_t clen; /* exception handler length */
-  uint16_t vm_code_size;
+  uint32_t vm_code_size;
   uint8_t *vm_code;
   BreakStack *break_stack;
   RetryStack *retry_stack;
@@ -196,7 +196,7 @@ void Scope_freeLvar(Lvar *);
 
 JmpLabel *Scope_reserveJmpLabel(Scope *self);
 
-void Scope_backpatchJmpLabel(JmpLabel *label, uint16_t position);
+void Scope_backpatchJmpLabel(JmpLabel *label, uint32_t position);
 
 void Scope_pushRetryStack(Scope *self);
 
