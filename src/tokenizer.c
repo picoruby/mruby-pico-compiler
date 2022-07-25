@@ -1044,7 +1044,11 @@ retry:
         default:
           if (IS_BEG() || p->state == EXPR_DOT || IS_ARG()) {
             if (cmd_state) {
-              p->state = EXPR_CMDARG;
+              if (self->line[self->pos] == ' ' || self->line[self->pos] == '\t') {
+                p->state = EXPR_BEG;
+              } else {
+                p->state = EXPR_CMDARG;
+              }
             }
             else {
               p->state = EXPR_ARG;

@@ -1452,6 +1452,14 @@ primary(A)  ::= LPAREN_ARG
                   STACK = p->cmdarg_stack;
                   A = B;
                 }
+set_expr_endarg ::= .
+                {
+                  p->state = EXPR_ENDARG;
+                }
+primary(A)  ::= LPAREN set_expr_endarg rparen.
+                {
+                  A = new_nil(p);
+                }
 primary(A)  ::= LPAREN compstmt(B) rparen. {
                   A = B;
                 }

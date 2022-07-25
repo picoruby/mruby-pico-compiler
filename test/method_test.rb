@@ -1,4 +1,14 @@
 class MethodTest < PicoRubyTest
+  desc "Mysterious case. Differnt from `p()` *space*"
+  assert_equal(<<~RUBY, "nil")
+    p ()
+  RUBY
+
+  desc "Another *space* case"
+  assert_equal(<<~RUBY, "1")
+    p (1) do end
+  RUBY
+
   desc "Integer class"
   assert_equal(<<~RUBY, "1234")
     puts 1234.to_s
