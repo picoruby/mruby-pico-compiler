@@ -1463,12 +1463,13 @@ primary(A)  ::= KW_return. { A = new_return(p, 0); }
 primary(A)  ::= KW_yield opt_paren_args(B). { A = new_yield(p, B); }
 primary(A)  ::= KW_not LPAREN_EXPR expr(B) rparen. { A = call_uni_op(p, B, "!"); }
 primary(A)  ::= KW_not LPAREN_EXPR rparen. { A = call_uni_op(p, new_nil(p), "!"); }
-primary(A)  ::= operation(B) brace_block(C). {
-                  //A = new_fcall(p, B, list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), C)));
+primary(A)  ::= operation(B) brace_block(C).
+                {
                   A = new_fcall(p, B, new_callargs(p, 0, 0, C));
                 }
 primary     ::= method_call.
-primary(A)  ::= method_call(B) brace_block(C). {
+primary(A)  ::= method_call(B) brace_block(C).
+                {
                   call_with_block(p, B, C);
                   A = B;
                 }
@@ -1601,7 +1602,6 @@ then ::= term KW_then.
 
 do ::= term.
 do ::= KW_do_cond.
-do ::= KW_do. // TODO remove after definingbrace_block
 
 if_tail     ::= opt_else.
 if_tail(A)  ::= KW_elsif expr_value(B) then
@@ -1870,15 +1870,8 @@ method_call(A)  ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET. {
                       A = new_call(p, B, STRING_ARY, C, '.');
                     }
 
-scope_nest_brace ::= LBRACE_BLOCK_PRIMARY.
-                {
-                  scope_nest(p, false);
-                }
-scope_nest_KW_do ::= KW_do.
-                {
-                  scope_nest(p, false);
-                }
-brace_block(A) ::= scope_nest_brace
+brace_block(A) ::= scope_nest
+                   LBRACE_BLOCK_PRIMARY
                    opt_block_param(B)
                    bodystmt(C)
                    scope_unnest
@@ -1886,7 +1879,8 @@ brace_block(A) ::= scope_nest_brace
                 {
                   A = new_block(p, B, C);
                 }
-brace_block(A) ::= scope_nest_KW_do
+brace_block(A) ::= scope_nest
+                   KW_do
                    opt_block_param(B)
                    bodystmt(C)
                    scope_unnest
@@ -2032,8 +2026,14 @@ superclass(A) ::= superclass_head expr_value(B) term. {
 
 numeric(A) ::= INTEGER(B). { A = new_lit(p, B, ATOM_at_int); }
 numeric(A) ::= FLOAT(B).   { A = new_lit(p, B, ATOM_at_float); }
-numeric(A) ::= UMINUS_NUM INTEGER(B). [LOWEST] { A = new_neglit(p, B, ATOM_at_int); }
-numeric(A) ::= UMINUS_NUM FLOAT(B). [LOWEST]   { A = new_neglit(p, B, ATOM_at_float); }
+numeric(A) ::= UMINUS_NUM INTEGER(B). [LOWEST]
+                {
+                  A = new_neglit(p, B, ATOM_at_int);
+                }
+numeric(A) ::= UMINUS_NUM FLOAT(B). [LOWEST]
+                {
+                  A = new_neglit(p, B, ATOM_at_float);
+                }
 
 variable(A) ::= IDENTIFIER(B). { A = new_lvar(p, B); }
 variable(A) ::= IVAR(B).       { A = new_ivar(p, B); }
@@ -2240,8 +2240,14 @@ string_interp(A) ::= DSTRING_MID(B). { A = new_str(p, B); }
 string_interp(A) ::= DSTRING_BEG compstmt(B) DSTRING_END.
   { A = B; }
 
-operation(A) ::= IDENTIFIER(B). { A = list2(atom(ATOM_at_ident), literal(B)); }
-operation(A) ::= CONSTANT(B). { A = list2(atom(ATOM_at_const), literal(B)); }
+operation(A) ::= IDENTIFIER(B).
+              {
+                A = list2(atom(ATOM_at_ident), literal(B));
+              }
+operation(A) ::= CONSTANT(B).
+              {
+                A = list2(atom(ATOM_at_const), literal(B));
+              }
 operation ::= FID.
 
 operation2 ::= IDENTIFIER.
