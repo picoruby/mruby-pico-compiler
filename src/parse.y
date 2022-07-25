@@ -395,13 +395,6 @@
     return list1(atom(ATOM_kw_nil));
   }
 
-  /* (:fcall self mid args) */
-  static Node*
-  new_fcall(ParserState *p, Node *b, Node *c)
-  {
-    return list3(atom(ATOM_fcall), b, c);
-  }
-
   static Node*
   new_callargs(ParserState *p, Node *args, Node *assocs, Node *block)
   {
@@ -409,6 +402,14 @@
       args = new_first_arg(p, args);
     }
     return push(push(args, assocs), block);
+  }
+
+  /* (:fcall self mid args) */
+  static Node*
+  new_fcall(ParserState *p, Node *b, Node *c)
+  {
+    if (!c) c = new_callargs(p, 0, 0, c);
+    return list3(atom(ATOM_fcall), b, c);
   }
 
   static Node*
@@ -460,7 +461,6 @@
       return;
     }
     if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
-      //yyerror(p, "both block arg and actual block given");
       ERRORP("both block arg and actual block given");
     } else {
       a = push(args_add, b);
