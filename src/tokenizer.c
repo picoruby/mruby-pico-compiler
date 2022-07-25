@@ -851,7 +851,7 @@ retry:
       type = COMMA;
       p->state = EXPR_BEG|EXPR_LABEL;
     } else if (IS_NUM(0)) {
-      p->state = EXPR_END;
+      p->state = EXPR_ENDARG;
       if (Regex_match3(&(self->line[self->pos]), "^(0[xX][0-9a-fA-F][0-9a-fA-F_]*)", regexResult)) {
         strsafecpy(value, regexResult[0].value, MAX_TOKEN_LENGTH);
         type = INTEGER;

@@ -883,16 +883,28 @@
 %right POW.
 %right UNEG UNOT UPLUS.
 
-program ::= top_compstmt(B).  {
-                                yypParser->p->root_node_box->nodes = list2(atom(ATOM_program), B);
-                              }
+program ::= top_compstmt(B).
+                {
+                  p->root_node_box->nodes = list2(atom(ATOM_program), B);
+                }
 
-top_compstmt(A) ::= top_stmts(B) opt_terms. { A = B; }
+top_compstmt(A) ::= top_stmts(B) opt_terms.
+                {
+                  A = B;
+                }
 
-top_stmts(A) ::= none. { A = new_begin(p, 0); }
-top_stmts(A) ::= top_stmt(B). { A = new_begin(p, B); }
+top_stmts(A) ::= none.
+                {
+                  A = new_begin(p, 0);
+                }
+top_stmts(A) ::= top_stmt(B).
+                {
+                  A = new_begin(p, B);
+                }
 top_stmts(A) ::= top_stmts(B) terms top_stmt(C).
-  { A = list3(atom(ATOM_stmts_add), B, C); }
+                {
+                  A = list3(atom(ATOM_stmts_add), B, C);
+                }
 
 top_stmt ::= stmt.
 
@@ -1075,8 +1087,34 @@ command_call ::= block_command.
 
 block_command ::= block_call.
 
+scope_nest ::= .
+                {
+                  scope_nest(p, false);
+                }
+
+scope_unnest ::= .
+                {
+                  scope_unnest(p);
+                }
+
+cmd_brace_block(A) ::=
+              scope_nest
+              LBRACE_ARG
+              opt_block_param(B)
+              compstmt(C)
+              scope_unnest
+              RBRACE.
+                {
+                  A = new_block(p, B, C);
+                }
+
 command(A) ::= operation(B) command_args(C). [LOWEST]
                 {
+                  A = new_fcall(p, B, C);
+                }
+command(A) ::= operation(B) command_args(C) cmd_brace_block(D).
+                {
+                  args_with_block(p, C, D);
                   A = new_fcall(p, B, C);
                 }
 command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). [LOWEST]
@@ -1095,7 +1133,6 @@ command(A) ::= KW_next call_args(B). { A = new_next(p, ret_args(p, B)); }
 command_args(A) ::= push_cmdarg(STACK) call_args(B).
                 {
                   p->cmdarg_stack = STACK;
-                  //A = list2(atom(ATOM_args_add), list2(atom(ATOM_args_new), B));
                   A = B;
                 }
 push_cmdarg(STACK) ::= .
@@ -1221,10 +1258,12 @@ block_arg(A) ::= AMPER arg(B).
 
 opt_block_arg(A) ::= comma block_arg(B).
               {
-                //A = list2(atom(ATOM_args_add), B);
                 A = B;
               }
-opt_block_arg(A) ::= none. { A = 0; }
+opt_block_arg(A) ::= none.
+              {
+                A = 0;
+              }
 
 comma ::= COMMA opt_nl.
 
@@ -1321,23 +1360,27 @@ arg(A) ::= arg(B) RSHIFT arg(C). { A = call_bin_op(B, ">>", C); }
 arg(A) ::= arg(B) ANDOP arg(C). { A = new_and(p, B, C); }
 arg(A) ::= arg(B) OROP arg(C). { A = new_or(p, B, C); }
 arg(A) ::= arg(B) QUESTION arg(C) COLON arg(D). { A = new_if(p, B, C, D); }
-arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D). {
+arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D).
+                {
                   A = defn_setup(p, B, C, D);
                   scope_unnest(p);
                   p->in_def--;
                 }
-arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E). {
+arg(A) ::= defn_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E).
+                {
                   A = defn_setup(p, B, C, new_mod_rescue(p, D, E));
                   scope_unnest(p);
                   p->in_def--;
                 }
-arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D). {
+arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D).
+                {
                   A = defs_setup(p, B, C, D);
                   scope_unnest(p);
                   p->in_def--;
                   p->in_single--;
                 }
-arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E). {
+arg(A) ::= defs_head(B) f_opt_arglist_paren(C) E arg(D) KW_modifier_rescue arg(E).
+                {
                   A = defs_setup(p, B, C, new_mod_rescue(p, D, E));
                   scope_unnest(p);
                   p->in_def--;
@@ -1399,8 +1442,16 @@ preserve_cmdarg_stack(STACK) ::= .
                 {
                   STACK = p->cmdarg_stack;
                   p->cmdarg_stack = 0;
+                  p->state = EXPR_ENDARG;
                 }
-primary(A)  ::= LPAREN_ARG stmt(B) rparen. { A = B; }
+primary(A)  ::= LPAREN_ARG
+                preserve_cmdarg_stack(STACK)
+                stmt(B)
+                rparen.
+                {
+                  STACK = p->cmdarg_stack;
+                  A = B;
+                }
 primary(A)  ::= LPAREN compstmt(B) rparen. {
                   A = B;
                 }
@@ -1472,17 +1523,17 @@ class_head(A) ::= KW_class
                   }
 primary(A) ::=  class_head(B)
                 bodystmt(C)
+                scope_unnest
                 KW_end.
                 {
                   A = new_class(p, B, C);
-                  scope_unnest(p);
                 }
 primary(A) ::=  KW_class LSHIFT preserve_in_def(NUM) expr(B) preserve_in_single(ND) term
                 bodystmt(C)
+                scope_unnest
                 KW_end.
                 {
                   A = new_sclass(p, B, C);
-                  scope_unnest(p);
                   p->in_def = NUM;
                   p->in_single = ND;
                 }
@@ -1504,24 +1555,24 @@ module_head(A) ::= KW_module cpath(B). {
                   }
 primary(A) ::=  module_head(B)
                 bodystmt(C)
+                scope_unnest
                 KW_end. {
                   A = new_module(p, B, C);
-                  scope_unnest(p);
                 }
 primary(A) ::=  defn_head(B) f_arglist(C)
                   bodystmt(D)
+                scope_unnest
                 KW_end.
                 {
                   A = defn_setup(p, B, C, D);
-                  scope_unnest(p);
                   p->in_def--;
                 }
 primary(A) ::=  defs_head(B) f_arglist(C)
                   bodystmt(D)
+                scope_unnest
                 KW_end.
                 {
                   A = defs_setup(p, B, C, D);
-                  scope_unnest(p);
                   p->in_def--;
                   p->in_single--;
                 }
@@ -1538,7 +1589,11 @@ primary(A) ::=  KW_retry. {
                   A = list1(atom(ATOM_retry));
                 }
 
-primary_value(A) ::= primary(B). { A = B; }
+primary_value(A) ::= primary(B).
+                {
+                  A = B;
+                  if (!A) A = new_nil(p);
+                }
 
 then ::= term.
 then ::= KW_then.
@@ -1716,14 +1771,16 @@ block_param(A) ::= block_args_tail(F).
                     {
                       A = new_args(p, 0, 0, 0, 0, F);
                     }
-opt_block_param(A)  ::= none. {
-                          local_add_blk(p, 0);
-                          A = 0;
-                        }
-opt_block_param(A)  ::= block_param_def(B). {
-                          p->cmd_start = true;
-                          A = B;
-                        }
+opt_block_param(A)  ::= none.
+                {
+                  local_add_blk(p, 0);
+                  A = 0;
+                }
+opt_block_param(A)  ::= block_param_def(B).
+                {
+                  p->cmd_start = true;
+                  A = B;
+                }
 
 block_param_def(A)  ::= OR opt_bv_decl OR. {
                           A = 0;
@@ -1774,13 +1831,16 @@ lambda_body(A) ::= KW_do_lambda bodystmt(B) KW_end.
                     A = B;
                   }
 
-scope_nest_KW_do_block ::= KW_do_block. { scope_nest(p, false); }
+scope_nest_KW_do_block ::= KW_do_block.
+                {
+                  scope_nest(p, false);
+                }
 do_block(A) ::= scope_nest_KW_do_block
                 opt_block_param(B)
                 bodystmt(C)
+                scope_unnest
                 KW_end. {
                   A = new_block(p, B, C);
-                  scope_unnest(p);
                 }
 
 block_call(A) ::= command(B) do_block(C). {
@@ -1810,22 +1870,30 @@ method_call(A)  ::= primary_value(B) LBRACKET opt_call_args(C) RBRACKET. {
                       A = new_call(p, B, STRING_ARY, C, '.');
                     }
 
-scope_nest_brace ::= LBRACE_BLOCK_PRIMARY. { scope_nest(p, false); }
-scope_nest_KW_do ::= KW_do. { scope_nest(p, false); }
+scope_nest_brace ::= LBRACE_BLOCK_PRIMARY.
+                {
+                  scope_nest(p, false);
+                }
+scope_nest_KW_do ::= KW_do.
+                {
+                  scope_nest(p, false);
+                }
 brace_block(A) ::= scope_nest_brace
                    opt_block_param(B)
                    bodystmt(C)
-                   RBRACE. {
-                     A = new_block(p, B, C);
-                     scope_unnest(p);
-                   }
+                   scope_unnest
+                   RBRACE.
+                {
+                  A = new_block(p, B, C);
+                }
 brace_block(A) ::= scope_nest_KW_do
                    opt_block_param(B)
                    bodystmt(C)
-                   KW_end. {
-                     A = new_block(p, B, C);
-                     scope_unnest(p);
-                   }
+                   scope_unnest
+                   KW_end.
+                {
+                  A = new_block(p, B, C);
+                }
 
 call_op(A) ::= PERIOD. { A = '.'; }
 call_op(A) ::= ANDDOT. { A = 0; }
