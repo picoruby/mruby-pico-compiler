@@ -115,6 +115,7 @@ typedef struct exception_handler
 } ExcHandler;
 
 typedef struct scope Scope;
+typedef struct generator_state GeneratorState;
 typedef struct scope
 {
   uint32_t irep_parameters; /* bbb */
@@ -144,13 +145,8 @@ typedef struct scope
   RetryStack *retry_stack;
   AssignSymbol *last_assign_symbol;
   Backpatch *backpatch; /* for backpatching of JMP label */
-  uint16_t nargs_added;
-  uint16_t nargs_before_splat;
-  uint16_t nargs_after_splat;
-  uint8_t gen_splat_status;
-  uint8_t gen_array_status;
-  uint8_t gen_array_count;
   ExcHandler *exc_handler;
+  GeneratorState *g;
 } Scope;
 
 #define GEN_SPLAT_STATUS_NONE              0b00000000

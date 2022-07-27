@@ -3,14 +3,6 @@
 #include <common.h>
 #include <debug.h>
 
-#ifndef MRBC_ALLOC_LIBC
-#define MRBC_ALLOC_LIBC
-#endif
-
-#ifndef MRBC_ALLOC_LIBC
-#include "mrubyc/src/alloc.h"
-#endif
-
 #ifdef PICORUBY_DEBUG
   /* GLOBAL */
   int alloc_count = 0;
@@ -23,7 +15,7 @@
     struct MRBC_ALLOC_STATISTICS *stats;
     mrbc_alloc_statistics(stats);
     DEBUGP("Memory total:%d, used:%d, free:%d, fragment:%d",
-           stats.total, stats.used, stats.free, stats.fragmentation );
+           stats->total, stats->used, stats->free, stats->fragmentation );
   #endif
   }
   void memcheck(void)

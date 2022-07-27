@@ -92,6 +92,7 @@ const char *push_gen_literal(Scope *scope, const char *s)
 
 Scope *scope_nest(Scope *scope)
 {
+  GeneratorState *g = scope->g;
   uint32_t nest_stack = scope->nest_stack;
   scope = scope->first_lower;
   for (uint16_t i = 0; i < scope->upper->next_lower_number; i++) {
@@ -100,6 +101,7 @@ Scope *scope_nest(Scope *scope)
   scope->upper->next_lower_number++;
   scope->nest_stack = nest_stack;
   push_nest_stack(scope, 1); /* 1 represents BLOCK NEST */
+  scope->g = g;
   return scope;
 }
 
@@ -127,8 +129,8 @@ int count_args(Scope *scope, Node *node)
 void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
   result->op_send = OP_SEND;
-  uint8_t prev_gen_splat_status = scope->gen_splat_status;
-  scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
+  uint8_t prev_gen_splat_status = scope->g->gen_splat_status;
+  scope->g->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int splat_pos = 0;
   Node *block_node = NULL;
   Node *node = tree;
@@ -200,16 +202,16 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
     }
   }
   if (splat_pos > 0) {
-    scope->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
+    scope->g->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
     if (splat_pos == 1) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
-      scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
+      scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
-  scope->gen_splat_status = prev_gen_splat_status;
+  scope->g->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) {
     result->has_splat = true;
     if (block_node) {
@@ -438,14 +440,14 @@ void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat);
 
 void gen_array(Scope *scope, Node *node, Node *mlhs)
 {
-  uint8_t prev_gen_array_status = scope->gen_array_status;
-  uint8_t prev_gen_array_count = scope->gen_array_count;
-  uint16_t prev_nargs_before_splat = scope->nargs_before_splat;
-  uint16_t prev_nargs_after_splat = scope->nargs_after_splat;
-  scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
-  scope->gen_array_count = 0;
-  scope->nargs_before_splat = 0;
-  scope->nargs_after_splat = 0;
+  uint8_t prev_gen_array_status = scope->g->gen_array_status;
+  uint8_t prev_gen_array_count = scope->g->gen_array_count;
+  uint16_t prev_nargs_before_splat = scope->g->nargs_before_splat;
+  uint16_t prev_nargs_after_splat = scope->g->nargs_after_splat;
+  scope->g->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
+  scope->g->gen_array_count = 0;
+  scope->g->nargs_before_splat = 0;
+  scope->g->nargs_after_splat = 0;
   int sp = scope->sp;
   GenValuesResult result = {0};
   if (node->cons.cdr->cons.car) gen_values(scope, node, &result);
@@ -473,7 +475,7 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
       Scope_pushCode(OP_ARRAY);
       Scope_pushCode(scope->sp);
       Scope_pushCode(result.nargs);
-      if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
+      if (scope->g->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
         Scope_pushCode(OP_ARYCAT);
         Scope_pushCode(--scope->sp);
       }
@@ -481,10 +483,10 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
       scope->sp--;
     }
   }
-  scope->gen_array_status = prev_gen_array_status;
-  scope->gen_array_count = prev_gen_array_count;
-  scope->nargs_before_splat = prev_nargs_before_splat;
-  scope->nargs_after_splat = prev_nargs_after_splat;
+  scope->g->gen_array_status = prev_gen_array_status;
+  scope->g->gen_array_count = prev_gen_array_count;
+  scope->g->nargs_before_splat = prev_nargs_before_splat;
+  scope->g->nargs_after_splat = prev_nargs_after_splat;
 }
 
 void gen_hash(Scope *scope, Node *node)
@@ -577,12 +579,12 @@ void gen_var(Scope *scope, Node *node)
 
 void gen_splat(Scope *scope, Node *node)
 {
-  if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
+  if (scope->g->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
     Scope_pushCode(OP_ARRAY);
-    scope->sp -= scope->nargs_before_splat;
+    scope->sp -= scope->g->nargs_before_splat;
     Scope_pushCode(scope->sp);
-    Scope_pushCode(scope->nargs_before_splat);
-    scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
+    Scope_pushCode(scope->g->nargs_before_splat);
+    scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
   codegen(scope, node->cons.car);
@@ -1992,38 +1994,38 @@ void codegen(Scope *scope, Node *tree)
       gen_call(scope, tree->cons.cdr, false, true);
       break;
     case ATOM_args_add:
-      scope->nargs_added++;
+      scope->g->nargs_added++;
       codegen(scope, tree->cons.cdr);
-      scope->nargs_added--;
-      if (scope->gen_array_status > GEN_ARRAY_STATUS_NONE) {
-        if (scope->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
+      scope->g->nargs_added--;
+      if (scope->g->gen_array_status > GEN_ARRAY_STATUS_NONE) {
+        if (scope->g->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
           scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT - 1;
           Scope_pushCode(OP_ARRAY);
           Scope_pushCode(scope->sp);
-          Scope_pushCode(scope->gen_array_count + 1);
-          if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
+          Scope_pushCode(scope->g->gen_array_count + 1);
+          if (scope->g->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
             Scope_pushCode(OP_ADD);
             Scope_pushCode(--scope->sp);
           }
-          scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING_SPLIT;
-          scope->gen_array_count = 0;
+          scope->g->gen_array_status = GEN_ARRAY_STATUS_GENERATING_SPLIT;
+          scope->g->gen_array_count = 0;
         } else {
-          scope->gen_array_count++;
+          scope->g->gen_array_count++;
         }
       }
-      if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
-        scope->nargs_before_splat++;
+      if (scope->g->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
+        scope->g->nargs_before_splat++;
       } else if (
-        scope->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
+        scope->g->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
         scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
         )
       {
-        scope->nargs_before_splat = 0;
-        scope->nargs_after_splat++;
-        if (scope->nargs_added == 0) {
+        scope->g->nargs_before_splat = 0;
+        scope->g->nargs_after_splat++;
+        if (scope->g->nargs_added == 0) {
           Scope_pushCode(OP_ARYPUSH);
-          Scope_pushCode(scope->sp - scope->nargs_after_splat);
-          Scope_pushCode(scope->nargs_after_splat);
+          Scope_pushCode(scope->sp - scope->g->nargs_after_splat);
+          Scope_pushCode(scope->g->nargs_after_splat);
         }
       }
       Scope_push(scope);
@@ -2211,7 +2213,11 @@ writeCode(Scope *scope, uint8_t *pos, bool verbose)
 
 void Generator_generate(Scope *scope, Node *root, bool verbose)
 {
+  GeneratorState *g = picorbc_alloc(sizeof(GeneratorState));
+  memset(g, 0, sizeof(GeneratorState));
+  scope->g = g;
   codegen(scope, root);
+  picorbc_free(g);
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
   int32_t codeSize = MRB_HEADER_SIZE + irepSize + MRB_FOOTER_SIZE;
   uint8_t *vmCode = picorbc_alloc(codeSize);
