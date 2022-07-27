@@ -1092,20 +1092,15 @@ scope_nest ::= .
                   scope_nest(p, false);
                 }
 
-scope_unnest ::= .
-                {
-                  scope_unnest(p);
-                }
-
 cmd_brace_block(A) ::=
               scope_nest
               LBRACE_ARG
               opt_block_param(B)
               compstmt(C)
-              scope_unnest
               RBRACE.
                 {
                   A = new_block(p, B, C);
+                  scope_unnest(p);
                 }
 
 command(A) ::= operation(B) command_args(C). [LOWEST]
@@ -1532,17 +1527,17 @@ class_head(A) ::= KW_class
                   }
 primary(A) ::=  class_head(B)
                 bodystmt(C)
-                scope_unnest
                 KW_end.
                 {
                   A = new_class(p, B, C);
+                  scope_unnest(p);
                 }
 primary(A) ::=  KW_class LSHIFT preserve_in_def(NUM) expr(B) preserve_in_single(ND) term
                 bodystmt(C)
-                scope_unnest
                 KW_end.
                 {
                   A = new_sclass(p, B, C);
+                  scope_unnest(p);
                   p->in_def = NUM;
                   p->in_single = ND;
                 }
@@ -1564,24 +1559,24 @@ module_head(A) ::= KW_module cpath(B). {
                   }
 primary(A) ::=  module_head(B)
                 bodystmt(C)
-                scope_unnest
                 KW_end. {
                   A = new_module(p, B, C);
+                  scope_unnest(p);
                 }
 primary(A) ::=  defn_head(B) f_arglist(C)
                   bodystmt(D)
-                scope_unnest
                 KW_end.
                 {
                   A = defn_setup(p, B, C, D);
+                  scope_unnest(p);
                   p->in_def--;
                 }
 primary(A) ::=  defs_head(B) f_arglist(C)
                   bodystmt(D)
-                scope_unnest
                 KW_end.
                 {
                   A = defs_setup(p, B, C, D);
+                  scope_unnest(p);
                   p->in_def--;
                   p->in_single--;
                 }
@@ -1846,9 +1841,9 @@ scope_nest_KW_do_block ::= KW_do_block.
 do_block(A) ::= scope_nest_KW_do_block
                 opt_block_param(B)
                 bodystmt(C)
-                scope_unnest
                 KW_end. {
                   A = new_block(p, B, C);
+                  scope_unnest(p);
                 }
 
 block_call(A) ::= command(B) do_block(C). {
@@ -1882,19 +1877,19 @@ brace_block(A) ::= scope_nest
                    LBRACE_BLOCK_PRIMARY
                    opt_block_param(B)
                    bodystmt(C)
-                   scope_unnest
                    RBRACE.
                 {
                   A = new_block(p, B, C);
+                  scope_unnest(p);
                 }
 brace_block(A) ::= scope_nest
                    KW_do
                    opt_block_param(B)
                    bodystmt(C)
-                   scope_unnest
                    KW_end.
                 {
                   A = new_block(p, B, C);
+                  scope_unnest(p);
                 }
 
 call_op(A) ::= PERIOD. { A = '.'; }
