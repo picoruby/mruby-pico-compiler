@@ -77,4 +77,11 @@ class BlockTest < PicoRubyTest
     p a
   RUBY
 
+  desc "interpolation of lvar that is a block arg"
+  assert_equal(<<~'RUBY', "2")
+    [0].each { |i|
+      puts "#{i + 2}"
+    }
+  RUBY
+
 end

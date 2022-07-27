@@ -1440,8 +1440,8 @@ preserve_cmdarg_stack(STACK) ::= .
                   p->state = EXPR_ENDARG;
                 }
 primary(A)  ::= LPAREN_ARG
-                preserve_cmdarg_stack(STACK)
                 stmt(B)
+                preserve_cmdarg_stack(STACK)
                 rparen.
                 {
                   STACK = p->cmdarg_stack;
@@ -1451,7 +1451,13 @@ set_expr_endarg ::= .
                 {
                   p->state = EXPR_ENDARG;
                 }
-primary(A)  ::= LPAREN set_expr_endarg rparen.
+/*
+ * This rule handles `p () {do_something}`
+ *                     ^ ^empty
+ *                     |
+ *                     space
+ * */
+primary(A)  ::= LPAREN_ARG set_expr_endarg rparen.
                 {
                   A = new_nil(p);
                 }
