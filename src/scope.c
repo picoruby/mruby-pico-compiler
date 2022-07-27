@@ -43,28 +43,6 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   return self;
 }
 
-void Scope_pushBackpatch(Scope *self, JmpLabel *label)
-{
-  Backpatch *bp = picorbc_alloc(sizeof(Backpatch));
-  bp->next = NULL;
-  bp->label = label;
-  if (!self->backpatch) {
-    self->backpatch = bp;
-    return;
-  }
-  Backpatch *tmp = self->backpatch;
-  while (tmp->next) tmp = tmp->next;
-  tmp->next = bp;
-}
-
-void Scope_shiftBackpatch(Scope *self)
-{
-  if (!self->backpatch) return;
-  Backpatch *bp = self->backpatch;
-  self->backpatch = self->backpatch->next;
-  picorbc_free(bp);
-}
-
 void freeLiteralRcsv(Literal *literal)
 {
   if (literal == NULL) return;
@@ -435,64 +413,6 @@ void Scope_freeCodePool(Scope *self)
   Scope_freeCodePool(self->next);
   Scope_freeCodePool(self->first_lower);
   freeCodePool(self->first_code_pool);
-}
-
-JmpLabel *Scope_reserveJmpLabel(Scope *scope)
-{
-  Scope_pushNCode((uint8_t *)"\0\0", 2);
-  JmpLabel *label = picorbc_alloc(sizeof(JmpLabel));
-  label->address = (void *)&scope->current_code_pool->data[scope->current_code_pool->index - 2];
-  label->pos = scope->vm_code_size;
-  return label;
-}
-
-void Scope_backpatchJmpLabel(JmpLabel *label, uint32_t position)
-{
-  uint8_t *data = (uint8_t *)label->address;
-  data[0] = ((position - label->pos) >> 8) & 0xff;
-  data[1] = (position - label->pos) & 0xff;
-  picorbc_free(label);
-}
-
-void Scope_pushRetryStack(Scope *self)
-{
-  RetryStack *retry_stack = picorbc_alloc(sizeof(RetryStack));
-  retry_stack->pos = self->vm_code_size;
-  if (self->retry_stack) {
-    retry_stack->prev = self->retry_stack;
-  } else {
-    retry_stack->prev = NULL;
-  }
-  self->retry_stack = retry_stack;
-}
-
-void Scope_popRetryStack(Scope *self)
-{
-  RetryStack *memo = self->retry_stack;
-  self->retry_stack = self->retry_stack->prev;
-  picorbc_free(memo);
-}
-
-void Scope_pushBreakStack(Scope *self)
-{
-  BreakStack *break_stack = picorbc_alloc(sizeof(BreakStack));
-  break_stack->point = NULL;
-  break_stack->next_pos = self->vm_code_size;
-  if (self->break_stack) {
-    break_stack->prev = self->break_stack;
-  } else {
-    break_stack->prev = NULL;
-  }
-  self->break_stack = break_stack;
-}
-
-void Scope_popBreakStack(Scope *self)
-{
-  BreakStack *memo = self->break_stack;
-  if (self->break_stack->point)
-    Scope_backpatchJmpLabel(self->break_stack->point, self->vm_code_size);
-  self->break_stack = self->break_stack->prev;
-  picorbc_free(memo);
 }
 
 int Scope_updateVmCodeSizeThenReturnTotalSize(Scope *self)

@@ -48,6 +48,86 @@ typedef enum misc {
 
 void codegen(Scope *scope, Node *tree);
 
+JmpLabel *reserve_jmpLabel(Scope *scope)
+{
+  Scope_pushNCode((uint8_t *)"\0\0", 2);
+  JmpLabel *label = picorbc_alloc(sizeof(JmpLabel));
+  label->address = (void *)&scope->current_code_pool->data[scope->current_code_pool->index - 2];
+  label->pos = scope->vm_code_size;
+  return label;
+}
+
+void backpatch_jmpLabel(JmpLabel *label, uint32_t position)
+{
+  uint8_t *data = (uint8_t *)label->address;
+  data[0] = ((position - label->pos) >> 8) & 0xff;
+  data[1] = (position - label->pos) & 0xff;
+  picorbc_free(label);
+}
+
+void push_backpatch(Scope *scope, JmpLabel *label)
+{
+  Backpatch *bp = picorbc_alloc(sizeof(Backpatch));
+  bp->next = NULL;
+  bp->label = label;
+  if (!scope->g->backpatch) {
+    scope->g->backpatch = bp;
+    return;
+  }
+  Backpatch *tmp = scope->g->backpatch;
+  while (tmp->next) tmp = tmp->next;
+  tmp->next = bp;
+}
+
+void shift_backpatch(Scope *scope)
+{
+  if (!scope->g->backpatch) return;
+  Backpatch *bp = scope->g->backpatch;
+  scope->g->backpatch = scope->g->backpatch->next;
+  picorbc_free(bp);
+}
+
+void push_retryStack(Scope *scope)
+{
+  RetryStack *retry_stack = picorbc_alloc(sizeof(RetryStack));
+  retry_stack->pos = scope->vm_code_size;
+  if (scope->g->retry_stack) {
+    retry_stack->prev = scope->g->retry_stack;
+  } else {
+    retry_stack->prev = NULL;
+  }
+  scope->g->retry_stack = retry_stack;
+}
+
+void pop_retryStack(Scope *scope)
+{
+  RetryStack *memo = scope->g->retry_stack;
+  scope->g->retry_stack = scope->g->retry_stack->prev;
+  picorbc_free(memo);
+}
+
+void push_breakStack(Scope *scope)
+{
+  BreakStack *break_stack = picorbc_alloc(sizeof(BreakStack));
+  break_stack->point = NULL;
+  break_stack->next_pos = scope->vm_code_size;
+  if (scope->g->break_stack) {
+    break_stack->prev = scope->g->break_stack;
+  } else {
+    break_stack->prev = NULL;
+  }
+  scope->g->break_stack = break_stack;
+}
+
+void pop_breakStack(Scope *scope)
+{
+  BreakStack *memo = scope->g->break_stack;
+  if (scope->g->break_stack->point)
+    backpatch_jmpLabel(scope->g->break_stack->point, scope->vm_code_size);
+  scope->g->break_stack = scope->g->break_stack->prev;
+  picorbc_free(memo);
+}
+
 void gen_self(Scope *scope)
 {
   Scope_pushCode(OP_LOADSELF);
@@ -92,6 +172,7 @@ const char *push_gen_literal(Scope *scope, const char *s)
 
 Scope *scope_nest(Scope *scope)
 {
+  GeneratorState *g = scope->g;
   uint32_t nest_stack = scope->nest_stack;
   scope = scope->first_lower;
   for (uint16_t i = 0; i < scope->upper->next_lower_number; i++) {
@@ -100,6 +181,7 @@ Scope *scope_nest(Scope *scope)
   scope->upper->next_lower_number++;
   scope->nest_stack = nest_stack;
   push_nest_stack(scope, 1); /* 1 represents BLOCK NEST */
+  scope->g = g;
   return scope;
 }
 
@@ -127,8 +209,8 @@ int count_args(Scope *scope, Node *node)
 void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
   result->op_send = OP_SEND;
-  uint8_t prev_gen_splat_status = scope->gen_splat_status;
-  scope->gen_splat_status = GEN_SPLAT_STATUS_NONE;
+  uint8_t prev_gen_splat_status = scope->g->gen_splat_status;
+  scope->g->gen_splat_status = GEN_SPLAT_STATUS_NONE;
   int splat_pos = 0;
   Node *block_node = NULL;
   Node *node = tree;
@@ -200,16 +282,16 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
     }
   }
   if (splat_pos > 0) {
-    scope->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
+    scope->g->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
     if (splat_pos == 1) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
       Scope_push(scope);
-      scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
+      scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     }
   }
   codegen(scope, tree->cons.cdr->cons.car);
-  scope->gen_splat_status = prev_gen_splat_status;
+  scope->g->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) {
     result->has_splat = true;
     if (block_node) {
@@ -377,7 +459,7 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     Scope_pushCode(scope->sp - 1);
     Scope_pushCode(OP_JMPNIL);
     Scope_pushCode(scope->sp--);
-    jmpLabel = Scope_reserveJmpLabel(scope);
+    jmpLabel = reserve_jmpLabel(scope);
   }
   // args
   if (node->cons.cdr->cons.car) {
@@ -431,21 +513,21 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
       }
     }
   }
-  if (is_scall) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
+  if (is_scall) backpatch_jmpLabel(jmpLabel, scope->vm_code_size);
 }
 
 void gen_masgn_2(Scope *scope, int total_nargs, Node *mlhs, bool has_splat);
 
 void gen_array(Scope *scope, Node *node, Node *mlhs)
 {
-  uint8_t prev_gen_array_status = scope->gen_array_status;
-  uint8_t prev_gen_array_count = scope->gen_array_count;
-  uint16_t prev_nargs_before_splat = scope->nargs_before_splat;
-  uint16_t prev_nargs_after_splat = scope->nargs_after_splat;
-  scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
-  scope->gen_array_count = 0;
-  scope->nargs_before_splat = 0;
-  scope->nargs_after_splat = 0;
+  uint8_t prev_gen_array_status = scope->g->gen_array_status;
+  uint8_t prev_gen_array_count = scope->g->gen_array_count;
+  uint16_t prev_nargs_before_splat = scope->g->nargs_before_splat;
+  uint16_t prev_nargs_after_splat = scope->g->nargs_after_splat;
+  scope->g->gen_array_status = GEN_ARRAY_STATUS_GENERATING;
+  scope->g->gen_array_count = 0;
+  scope->g->nargs_before_splat = 0;
+  scope->g->nargs_after_splat = 0;
   int sp = scope->sp;
   GenValuesResult result = {0};
   if (node->cons.cdr->cons.car) gen_values(scope, node, &result);
@@ -473,7 +555,7 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
       Scope_pushCode(OP_ARRAY);
       Scope_pushCode(scope->sp);
       Scope_pushCode(result.nargs);
-      if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
+      if (scope->g->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
         Scope_pushCode(OP_ARYCAT);
         Scope_pushCode(--scope->sp);
       }
@@ -481,10 +563,10 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
       scope->sp--;
     }
   }
-  scope->gen_array_status = prev_gen_array_status;
-  scope->gen_array_count = prev_gen_array_count;
-  scope->nargs_before_splat = prev_nargs_before_splat;
-  scope->nargs_after_splat = prev_nargs_after_splat;
+  scope->g->gen_array_status = prev_gen_array_status;
+  scope->g->gen_array_count = prev_gen_array_count;
+  scope->g->nargs_before_splat = prev_nargs_before_splat;
+  scope->g->nargs_after_splat = prev_nargs_after_splat;
 }
 
 void gen_hash(Scope *scope, Node *node)
@@ -577,12 +659,12 @@ void gen_var(Scope *scope, Node *node)
 
 void gen_splat(Scope *scope, Node *node)
 {
-  if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
+  if (scope->g->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
     Scope_pushCode(OP_ARRAY);
-    scope->sp -= scope->nargs_before_splat;
+    scope->sp -= scope->g->nargs_before_splat;
     Scope_pushCode(scope->sp);
-    Scope_pushCode(scope->nargs_before_splat);
-    scope->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
+    Scope_pushCode(scope->g->nargs_before_splat);
+    scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
   codegen(scope, node->cons.car);
@@ -1030,7 +1112,7 @@ void gen_op_assign(Scope *scope, Node *node)
             break;
         }
         Scope_pushCode(--scope->sp);
-        jmpLabel = Scope_reserveJmpLabel(scope);
+        jmpLabel = reserve_jmpLabel(scope);
         /* right condition of `___ &&= ___` */
         codegen(scope, node->cons.cdr);
       } else {
@@ -1115,7 +1197,7 @@ void gen_op_assign(Scope *scope, Node *node)
       break;
   }
   /* goto label */
-  if (isANDOPorOROP) Scope_backpatchJmpLabel(jmpLabel, scope->vm_code_size);
+  if (isANDOPorOROP) backpatch_jmpLabel(jmpLabel, scope->vm_code_size);
 }
 
 void gen_dstr(Scope *scope, Node *node)
@@ -1152,11 +1234,11 @@ void gen_and_or(Scope *scope, Node *node, int opcode)
   codegen(scope, node->cons.car);
   Scope_pushCode(opcode); /* and->OP_JMPNOT, or->OP_JMPIF */
   Scope_pushCode(scope->sp);
-  JmpLabel *label = Scope_reserveJmpLabel(scope);
+  JmpLabel *label = reserve_jmpLabel(scope);
   /* right condition */
   codegen(scope, node->cons.cdr);
   /* goto label */
-  Scope_backpatchJmpLabel(label, scope->vm_code_size);
+  backpatch_jmpLabel(label, scope->vm_code_size);
 }
 
 void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[])
@@ -1190,7 +1272,7 @@ void gen_case_when(Scope *scope, Node *node, int cond_reg, JmpLabel *label_true[
   /* when condition matched */
   Scope_pushCode(OP_JMPIF);
   Scope_pushCode(cond_reg);
-  *label_true = Scope_reserveJmpLabel(scope);
+  *label_true = reserve_jmpLabel(scope);
   Scope_setSp(scope, cond_reg);
 }
 
@@ -1226,10 +1308,10 @@ void gen_case(Scope *scope, Node *node)
     gen_case_when(scope, a_case->cons.cdr, cond_reg, label_true_array);
     /* when condition didn't match */
     Scope_pushCode(OP_JMP);
-    JmpLabel *label_false = Scope_reserveJmpLabel(scope);
+    JmpLabel *label_false = reserve_jmpLabel(scope);
     /* content */
     for (int j = 0; j < args_count; j++)
-      Scope_backpatchJmpLabel(label_true_array[j], scope->vm_code_size);
+      backpatch_jmpLabel(label_true_array[j], scope->vm_code_size);
     { /* inside when */
       Scope_setSp(scope, cond_reg);
       int16_t current_vm_code_size = scope->vm_code_size;
@@ -1242,8 +1324,8 @@ void gen_case(Scope *scope, Node *node)
       }
     }
     Scope_pushCode(OP_JMP);
-    label_end_array[i++] = Scope_reserveJmpLabel(scope);
-    Scope_backpatchJmpLabel(label_false, scope->vm_code_size);
+    label_end_array[i++] = reserve_jmpLabel(scope);
+    backpatch_jmpLabel(label_false, scope->vm_code_size);
     /* next case */
     a_case = a_case->cons.cdr->cons.cdr;
     if (a_case && a_case->cons.cdr && Node_atomType(a_case->cons.cdr->cons.car) == ATOM_args_add) {
@@ -1266,7 +1348,7 @@ void gen_case(Scope *scope, Node *node)
     }
   }
   for (i = 0; i < when_count; i++)
-    Scope_backpatchJmpLabel(label_end_array[i], scope->vm_code_size);
+    backpatch_jmpLabel(label_end_array[i], scope->vm_code_size);
   Scope_setSp(scope, start_reg);
   Scope_pushCode(OP_MOVE);
   Scope_pushCode(scope->sp++);
@@ -1280,13 +1362,13 @@ void gen_if(Scope *scope, Node *node)
   codegen(scope, node->cons.car);
   Scope_pushCode(OP_JMPNOT);
   Scope_pushCode(scope->sp);
-  JmpLabel *label_false = Scope_reserveJmpLabel(scope);
+  JmpLabel *label_false = reserve_jmpLabel(scope);
   /* condition true */
   codegen(scope, node->cons.cdr->cons.car);
   Scope_pushCode(OP_JMP);
-  JmpLabel *label_end = Scope_reserveJmpLabel(scope);
+  JmpLabel *label_end = reserve_jmpLabel(scope);
   /* condition false */
-  Scope_backpatchJmpLabel(label_false, scope->vm_code_size);
+  backpatch_jmpLabel(label_false, scope->vm_code_size);
   Scope_setSp(scope, start_reg);
   if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_NONE) {
   // FIXME
@@ -1300,7 +1382,7 @@ void gen_if(Scope *scope, Node *node)
     Scope_setSp(scope, start_reg);
   }
   /* right after KW_end */
-  Scope_backpatchJmpLabel(label_end, scope->vm_code_size);
+  backpatch_jmpLabel(label_end, scope->vm_code_size);
 }
 
 void gen_alias(Scope *scope, Node *node)
@@ -1349,27 +1431,27 @@ void gen_colon3(Scope *scope, Node *node)
 void gen_while(Scope *scope, Node *node, int op_jmp)
 {
   push_nest_stack(scope, 0); /* 0 represents CONDITION NEST */
-  Scope_pushBreakStack(scope);
+  push_breakStack(scope);
   Scope_pushCode(OP_JMP);
-  JmpLabel *label_cond = Scope_reserveJmpLabel(scope);
-  scope->break_stack->redo_pos = scope->vm_code_size;
+  JmpLabel *label_cond = reserve_jmpLabel(scope);
+  scope->g->break_stack->redo_pos = scope->vm_code_size;
   /* inside while */
   uint32_t top = scope->vm_code_size;
   codegen(scope, node->cons.cdr);
   /* just before condition */
-  Scope_backpatchJmpLabel(label_cond, scope->vm_code_size);
+  backpatch_jmpLabel(label_cond, scope->vm_code_size);
   /* condition */
   codegen(scope, node->cons.car);
   Scope_pushCode(op_jmp);
   Scope_pushCode(scope->sp);
-  JmpLabel *label_top = Scope_reserveJmpLabel(scope);
-  Scope_backpatchJmpLabel(label_top, top);
+  JmpLabel *label_top = reserve_jmpLabel(scope);
+  backpatch_jmpLabel(label_top, top);
   {
     /* after while block / TODO: should be omitted if subsequent code exists */
     Scope_pushCode(OP_LOADNIL);
     Scope_pushCode(scope->sp);
   }
-  Scope_popBreakStack(scope);
+  pop_breakStack(scope);
   pop_nest_stack(scope);
 }
 
@@ -1383,7 +1465,7 @@ void gen_break(Scope *scope, Node *node)
     Scope_pushCode(scope->sp);
   } else {                     /* CONDITION NEST */
     Scope_pushCode(OP_JMP);
-    scope->break_stack->point = Scope_reserveJmpLabel(scope);
+    scope->g->break_stack->point = reserve_jmpLabel(scope);
   }
 }
 
@@ -1397,8 +1479,8 @@ void gen_next(Scope *scope, Node *node)
     Scope_pushCode(scope->sp);
   } else {                     /* CONDITION NEST */
     Scope_pushCode(OP_JMP);
-    JmpLabel *label = Scope_reserveJmpLabel(scope);
-    Scope_backpatchJmpLabel(label, scope->break_stack->next_pos);
+    JmpLabel *label = reserve_jmpLabel(scope);
+    backpatch_jmpLabel(label, scope->g->break_stack->next_pos);
   }
 }
 
@@ -1410,8 +1492,8 @@ void gen_redo(Scope *scope)
     Scope_pushCode(0);
     Scope_pushCode(0);
   } else {                     /* CONDITION NEST */
-    JmpLabel *label = Scope_reserveJmpLabel(scope);
-    Scope_backpatchJmpLabel(label, scope->break_stack->redo_pos);
+    JmpLabel *label = reserve_jmpLabel(scope);
+    backpatch_jmpLabel(label, scope->g->break_stack->redo_pos);
   }
 }
 
@@ -1478,13 +1560,13 @@ void gen_irep(Scope *scope, Node *node)
     if (nopt) {
       for (int i=0; i < nopt; i++) {
         Scope_pushCode(OP_JMP);
-        Scope_pushBackpatch(scope, Scope_reserveJmpLabel(scope));
+        push_backpatch(scope, reserve_jmpLabel(scope));
       }
       Scope_pushCode(OP_JMP);
-      JmpLabel *label = Scope_reserveJmpLabel(scope);
+      JmpLabel *label = reserve_jmpLabel(scope);
       codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car);
       scope->sp -= nopt;
-      Scope_backpatchJmpLabel(label, scope->vm_code_size);
+      backpatch_jmpLabel(label, scope->vm_code_size);
     }
   }
   { /* inside def */
@@ -1835,14 +1917,14 @@ JmpLabel *gen_another_rescue(Scope *scope, Node *node)
       tmp->cons.cdr->cons.car = tmp2;
       Scope_pushCode(OP_JMPIF);
       Scope_pushCode(scope->sp);
-      labels_rescue[i] = Scope_reserveJmpLabel(scope);
+      labels_rescue[i] = reserve_jmpLabel(scope);
     }
     scope->sp--;
   }
   Scope_pushCode(OP_JMP);
-  JmpLabel *label_rescue_missed = Scope_reserveJmpLabel(scope);
+  JmpLabel *label_rescue_missed = reserve_jmpLabel(scope);
   for (int i = 0; i < nexc; i++)
-    Scope_backpatchJmpLabel(labels_rescue[i], scope->vm_code_size);
+    backpatch_jmpLabel(labels_rescue[i], scope->vm_code_size);
   /* free */
   picorbc_free(labels_rescue);
   { /* exc_var */
@@ -1857,8 +1939,8 @@ JmpLabel *gen_another_rescue(Scope *scope, Node *node)
     Scope_pushCode(scope->sp);
   }
   Scope_pushCode(OP_JMP);
-  JmpLabel *label_else = Scope_reserveJmpLabel(scope);
-  Scope_backpatchJmpLabel(label_rescue_missed, scope->vm_code_size);
+  JmpLabel *label_else = reserve_jmpLabel(scope);
+  backpatch_jmpLabel(label_rescue_missed, scope->vm_code_size);
   return label_else;
 }
 
@@ -1867,7 +1949,7 @@ void gen_rescue(Scope *scope, Node *node)
   ExcHandler *exc_handler = new_exc_handler(scope, 0);
   write_exc_handler(&exc_handler->table[1], scope->vm_code_size);
   int pc = scope->vm_code_size;
-  Scope_pushRetryStack(scope);
+  push_retryStack(scope);
   /* main stmt */
   codegen(scope, node->cons.cdr->cons.car);
   if (pc == scope->vm_code_size) {
@@ -1876,7 +1958,7 @@ void gen_rescue(Scope *scope, Node *node)
   }
   write_exc_handler(&exc_handler->table[5], scope->vm_code_size);
   Scope_pushCode(OP_JMP);
-  JmpLabel *label_bottom = Scope_reserveJmpLabel(scope);
+  JmpLabel *label_bottom = reserve_jmpLabel(scope);
   write_exc_handler(&exc_handler->table[9], scope->vm_code_size);
   Scope_pushCode(OP_EXCEPT);
   Scope_pushCode(scope->sp);
@@ -1898,17 +1980,17 @@ void gen_rescue(Scope *scope, Node *node)
   scope->sp--;
   Scope_pushCode(OP_RAISEIF);
   Scope_pushCode(scope->sp);
-  Scope_backpatchJmpLabel(label_bottom, scope->vm_code_size);
+  backpatch_jmpLabel(label_bottom, scope->vm_code_size);
   /* else */
   codegen(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car);
   for (int i = 0; i < nrescue; i++)
-    Scope_backpatchJmpLabel(labels_else[i], scope->vm_code_size);
-  Scope_popRetryStack(scope);
+    backpatch_jmpLabel(labels_else[i], scope->vm_code_size);
+  pop_retryStack(scope);
 }
 
 void gen_retry(Scope *scope, Node *node)
 {
-  int16_t s = scope->retry_stack->pos - scope->vm_code_size - 3;
+  int16_t s = scope->g->retry_stack->pos - scope->vm_code_size - 3;
   Scope_pushCode(OP_JMPUW);
   Scope_pushCode((uint8_t)(s >> 8));
   Scope_pushCode((uint8_t)(s & 0xff));
@@ -1973,9 +2055,9 @@ void codegen(Scope *scope, Node *tree)
       gen_assign(scope, tree->cons.cdr, 0);
       break;
     case ATOM_assign_backpatch:
-      if (!scope->backpatch) return;
-      Scope_backpatchJmpLabel(scope->backpatch->label, scope->vm_code_size);
-      Scope_shiftBackpatch(scope);
+      if (!scope->g->backpatch) return;
+      backpatch_jmpLabel(scope->g->backpatch->label, scope->vm_code_size);
+      shift_backpatch(scope);
       gen_assign(scope, tree->cons.cdr, 0);
       break;
     case ATOM_op_assign:
@@ -1992,38 +2074,38 @@ void codegen(Scope *scope, Node *tree)
       gen_call(scope, tree->cons.cdr, false, true);
       break;
     case ATOM_args_add:
-      scope->nargs_added++;
+      scope->g->nargs_added++;
       codegen(scope, tree->cons.cdr);
-      scope->nargs_added--;
-      if (scope->gen_array_status > GEN_ARRAY_STATUS_NONE) {
-        if (scope->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
+      scope->g->nargs_added--;
+      if (scope->g->gen_array_status > GEN_ARRAY_STATUS_NONE) {
+        if (scope->g->gen_array_count == PICORUBY_ARRAY_SPLIT_COUNT - 1) {
           scope->sp -= PICORUBY_ARRAY_SPLIT_COUNT - 1;
           Scope_pushCode(OP_ARRAY);
           Scope_pushCode(scope->sp);
-          Scope_pushCode(scope->gen_array_count + 1);
-          if (scope->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
+          Scope_pushCode(scope->g->gen_array_count + 1);
+          if (scope->g->gen_array_status == GEN_ARRAY_STATUS_GENERATING_SPLIT) {
             Scope_pushCode(OP_ADD);
             Scope_pushCode(--scope->sp);
           }
-          scope->gen_array_status = GEN_ARRAY_STATUS_GENERATING_SPLIT;
-          scope->gen_array_count = 0;
+          scope->g->gen_array_status = GEN_ARRAY_STATUS_GENERATING_SPLIT;
+          scope->g->gen_array_count = 0;
         } else {
-          scope->gen_array_count++;
+          scope->g->gen_array_count++;
         }
       }
-      if (scope->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
-        scope->nargs_before_splat++;
+      if (scope->g->gen_splat_status == GEN_SPLAT_STATUS_BEFORE_SPLAT) {
+        scope->g->nargs_before_splat++;
       } else if (
-        scope->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
+        scope->g->gen_splat_status == GEN_SPLAT_STATUS_AFTER_SPLAT &&
         scope->current_code_pool->data[scope->current_code_pool->index - 2] != OP_ARYCAT
         )
       {
-        scope->nargs_before_splat = 0;
-        scope->nargs_after_splat++;
-        if (scope->nargs_added == 0) {
+        scope->g->nargs_before_splat = 0;
+        scope->g->nargs_after_splat++;
+        if (scope->g->nargs_added == 0) {
           Scope_pushCode(OP_ARYPUSH);
-          Scope_pushCode(scope->sp - scope->nargs_after_splat);
-          Scope_pushCode(scope->nargs_after_splat);
+          Scope_pushCode(scope->sp - scope->g->nargs_after_splat);
+          Scope_pushCode(scope->g->nargs_after_splat);
         }
       }
       Scope_push(scope);
@@ -2211,7 +2293,11 @@ writeCode(Scope *scope, uint8_t *pos, bool verbose)
 
 void Generator_generate(Scope *scope, Node *root, bool verbose)
 {
+  GeneratorState *g = picorbc_alloc(sizeof(GeneratorState));
+  memset(g, 0, sizeof(GeneratorState));
+  scope->g = g;
   codegen(scope, root);
+  picorbc_free(g);
   int irepSize = Scope_updateVmCodeSizeThenReturnTotalSize(scope);
   int32_t codeSize = MRB_HEADER_SIZE + irepSize + MRB_FOOTER_SIZE;
   uint8_t *vmCode = picorbc_alloc(codeSize);
