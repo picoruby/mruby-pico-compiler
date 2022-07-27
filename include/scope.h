@@ -70,20 +70,6 @@ typedef struct code_pool
                                 // or 40 bytes total in 64 bit
 } CodePool;
 
-typedef struct retry_stack
-{
-  uint32_t pos;
-  struct retry_stack *prev;
-} RetryStack;
-
-typedef struct break_stack
-{
-  void *point;
-  struct break_stack *prev;
-  uint32_t next_pos;
-  uint32_t redo_pos;
-} BreakStack;
-
 /*
  * For symbols which aren't stored in ParserState's string_pool
  * like `[]=` `attr=`
@@ -94,18 +80,6 @@ typedef struct assign_symbol
   struct assign_symbol *prev;
   const char *value;
 } AssignSymbol;
-
-typedef struct jmp_label
-{
-  void *address;
-  uint32_t pos;
-} JmpLabel;
-
-typedef struct backpatch
-{
-  JmpLabel *label;
-  struct backpatch *next;
-} Backpatch;
 
 typedef struct exception_handler ExcHandler;
 typedef struct exception_handler
@@ -141,10 +115,7 @@ typedef struct scope
   uint16_t clen; /* exception handler length */
   uint32_t vm_code_size;
   uint8_t *vm_code;
-  BreakStack *break_stack;
-  RetryStack *retry_stack;
   AssignSymbol *last_assign_symbol;
-  Backpatch *backpatch; /* for backpatching of JMP label */
   ExcHandler *exc_handler;
   GeneratorState *g;
 } Scope;
@@ -159,10 +130,6 @@ typedef struct scope
 Scope *Scope_new(Scope *upper, bool lvar_top);
 
 void Scope_free(Scope *self);
-
-void Scope_pushBackpatch(Scope *self, JmpLabel *label);
-
-void Scope_shiftBackpatch(Scope *self);
 
 void Scope_pushNCode_self(Scope *self, uint8_t *value, int size);
 #define Scope_pushNCode(v, s) Scope_pushNCode_self(scope, (v), (s))
@@ -189,18 +156,6 @@ void Scope_finish(Scope *self);
 void Scope_freeCodePool(Scope *self);
 
 void Scope_freeLvar(Lvar *);
-
-JmpLabel *Scope_reserveJmpLabel(Scope *self);
-
-void Scope_backpatchJmpLabel(JmpLabel *label, uint32_t position);
-
-void Scope_pushRetryStack(Scope *self);
-
-void Scope_popRetryStack(Scope *self);
-
-void Scope_pushBreakStack(Scope *self);
-
-void Scope_popBreakStack(Scope *self);
 
 int Scope_updateVmCodeSizeThenReturnTotalSize(Scope *self);
 
