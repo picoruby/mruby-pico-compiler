@@ -18,4 +18,10 @@ class ScallTest < PicoRubyTest
     puts a(2)&.to_s
   RUBY
 
+  desc "&. oprator with block"
+  assert_equal(<<~RUBY, "0\n1")
+    [0,1]&.each do |i|
+      puts i
+    end
+  RUBY
 end

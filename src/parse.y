@@ -503,6 +503,7 @@
       }
       break;
     case ATOM_call:
+    case ATOM_scall:
     case ATOM_fcall:
       n = a->cons.cdr->cons.cdr;
       if (n->cons.cdr && !n->cons.cdr->cons.car) {
