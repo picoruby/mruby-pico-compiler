@@ -1117,6 +1117,11 @@ command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E). [LOWES
                 {
                   A = new_call(p, B, D, E, C);
                 }
+command(A) ::= primary_value(B) call_op(C) operation2(D) command_args(E) cmd_brace_block(F).
+                {
+                  args_with_block(p, E, F);
+                  A = new_call(p, B, D, E, C);
+                }
 command(A) ::= KW_super command_args(B).
               {
                 A = new_super(p, B);
