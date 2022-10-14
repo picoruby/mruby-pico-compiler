@@ -18,7 +18,7 @@
 # include <inttypes.h>
 #endif
 
-#if defined(MRB_INT64)
+#if defined(MRBC_INT64)
   typedef int64_t mrb_int;
   typedef uint64_t mrb_uint;
 # define MRB_INT_BIT 64
