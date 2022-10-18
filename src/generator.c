@@ -1551,6 +1551,7 @@ void gen_irep(Scope *scope, Node *node)
     Scope_setSp(scope, sp); // cancel gen_var()'s effect
   }
   scope->irep_parameters = bbb;
+  scope->rlen++;
   Scope_pushCode(OP_ENTER);
   Scope_pushCode((uint8_t)(bbb >> 16 & 0xFF));
   Scope_pushCode((uint8_t)(bbb >> 8 & 0xFF));
