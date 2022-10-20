@@ -167,7 +167,12 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do |f|
-    sh "cd #{lib_dir} && #{cc.command} #{cc.flags.flatten.join(' ')} -o ptr_size_generator ptr_size_generator.c"
+    command = if cc.command == "arm-none-eabi-gcc"
+      cc.alt_command
+    else
+      cc.command
+    end
+    sh "cd #{lib_dir} && #{command} #{cc.flags.flatten.join(' ')} -o ptr_size_generator ptr_size_generator.c"
   end
 
   file objfile("#{build_dir}/src/parse") => "#{src_dir}/parse.c" do |f|
@@ -205,6 +210,11 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{lib_dir}/lemon" => %W(#{lib_dir}/lemon.c) do |f|
-    sh "#{cc.command} #{cc.flags.flatten.join(" ")} -o #{f.name} #{f.prerequisites.first}"
+    command = if cc.command == "arm-none-eabi-gcc"
+      cc.alt_command
+    else
+      cc.command
+    end
+    sh "#{command} #{cc.flags.flatten.join(" ")} -o #{f.name} #{f.prerequisites.first}"
   end
 end
