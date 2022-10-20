@@ -10,6 +10,7 @@
   #define PICORBC_ALLOC(size) malloc(size)
   #define PICORBC_FREE(ptr)   free(ptr)
 #else
+  #include <alloc.h>
   #define PICORBC_ALLOC(size) mrbc_raw_alloc(size)
   #define PICORBC_FREE(ptr)   mrbc_raw_free(ptr)
 #endif /* MRBC_ALLOC_LIBC */
