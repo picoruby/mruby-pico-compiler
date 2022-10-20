@@ -67,7 +67,7 @@ void dumpCode(Scope *scope)
 
 void
 printToken(Tokenizer *tokenizer, Token *token) {
-  printf("\e[32;40;1mtoken> %s\e[m \e[35;40;1m%s\e[m `\e[31;40;1m%s\e[m` \e[36;40;1m%s\e[m len=%ld line=%d pos=%d\n",
+  printf("\e[32;40;1mtoken> %s\e[m \e[35;40;1m%s\e[m `\e[31;40;1m%s\e[m` \e[36;40;1m%s\e[m len=%zu line=%d pos=%d\n",
      tokenizer_mode_name(tokenizer->mode),
      token_name(token->type),
      token->value,
