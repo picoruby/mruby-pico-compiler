@@ -10,6 +10,12 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   lib_dir = "#{dir}/lib"
   spec.cc.include_paths << include_dir
 
+  qemu = if dir.end_with?("host/mruby-pico-compiler")
+           ""
+         else
+           ENV['QEMU']
+         end
+
   Dir.glob("#{src_dir}/*.c").each do |src|
     file objfile(src.pathmap "#{build_dir}/src/%n") => [src, "#{include_dir}/parse_header.h"] do |f|
       cc.run f.name, src
@@ -157,7 +163,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{include_dir}/ptr_size.h" => ["#{lib_dir}/ptr_size_generator", include_dir] do
-    sh "cd #{lib_dir} && #{ENV['QEMU']} ./ptr_size_generator && mv ptr_size.h #{include_dir}"
+    sh "cd #{lib_dir} && #{qemu} ./ptr_size_generator && mv ptr_size.h #{include_dir}"
   end
 
   file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do |f|
@@ -186,7 +192,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
                                   #{lib_dir}/lemon
                                   #{include_dir}/ptr_size.h) do
     require "open3"
-    cmd = "cd #{src_dir} && #{ENV['QEMU']} #{lib_dir}/lemon -p #{ENV['LEMON_MACRO']} ./parse.y"
+    cmd = "cd #{src_dir} && #{qemu} #{lib_dir}/lemon -p #{ENV['LEMON_MACRO']} ./parse.y"
     puts cmd
     out, err = Open3.capture3(cmd)
     puts out
