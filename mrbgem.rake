@@ -5,6 +5,10 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
 
   spec.add_conflict 'mruby-compiler'
 
+  if build.gems['picoruby-mrubyc']
+    Rake::Task["#{build.gems['picoruby-mrubyc'].dir}/repos/mrubyc"].invoke
+  end
+
   include_dir = "#{dir}/include"
   src_dir = "#{dir}/src"
   lib_dir = "#{dir}/lib"
