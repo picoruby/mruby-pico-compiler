@@ -6,7 +6,11 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   spec.add_conflict 'mruby-compiler'
 
   if build.gems['picoruby-mrubyc']
-    Rake::Task["#{build.gems['picoruby-mrubyc'].dir}/repos/mrubyc"].invoke
+    begin
+      Rake::Task["#{build.gems['picoruby-mrubyc'].dir}/repos/mrubyc"].invoke
+    rescue RuntimeError => e
+      # ignore
+    end
   end
 
   include_dir = "#{dir}/include"
