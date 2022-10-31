@@ -29,7 +29,7 @@ typedef struct mrbc_context {
 
 typedef mrbc_context picorbc_context;
 
-picorbc_context* picorbc_context_new(void);
+picorbc_context* picorbc_context_new(picorbc_context *cxt);
 
 void picorbc_context_free(picorbc_context *cxt);
 

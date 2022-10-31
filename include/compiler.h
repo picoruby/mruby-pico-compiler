@@ -10,7 +10,7 @@
 
 bool Compiler_compile(ParserState *p, StreamInterface *si, picorbc_context *cxt);
 
-ParserState *Compiler_parseInitState(uint8_t node_box_size);
+ParserState *Compiler_parseInitState(ParserState *p, uint8_t node_box_size);
 
 void Compiler_parserStateFree(ParserState *p);
 

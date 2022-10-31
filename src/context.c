@@ -6,9 +6,11 @@
 #include "scope.h"
 
 picorbc_context*
-picorbc_context_new(void)
+picorbc_context_new(picorbc_context *cxt)
 {
-  picorbc_context *cxt = (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
+  if (cxt == NULL) {
+    cxt = (picorbc_context *)picorbc_alloc(sizeof(picorbc_context));
+  }
   memset(cxt, 0, sizeof(picorbc_context));
   return cxt;
 }

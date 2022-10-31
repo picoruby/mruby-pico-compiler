@@ -200,9 +200,13 @@ FAIL:
 }
 
 ParserState *
-Compiler_parseInitState(uint8_t node_box_size)
+Compiler_parseInitState(ParserState *p, uint8_t node_box_size)
 {
-  ParserState *p = ParseInitState(node_box_size);
+  if (p == NULL) {
+    p = ParseInitState(0, node_box_size);
+  } else {
+    ParseInitState(p, node_box_size);
+  }
   return p;
 }
 

@@ -2347,9 +2347,11 @@ none(A) ::= . { A = 0; }
     return (const char *)&pool->strings[index];
   }
 
-  ParserState *ParseInitState(uint8_t node_box_size)
+  ParserState *ParseInitState(ParserState *p, uint8_t node_box_size)
   {
-    ParserState *p = LEMON_ALLOC(sizeof(ParserState));
+    if (p == NULL) {
+      p = LEMON_ALLOC(sizeof(ParserState));
+    }
     memset(p, 0, sizeof(ParserState));
     p->node_box_size = node_box_size;
     p->scope = Scope_new(NULL, true);

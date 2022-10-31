@@ -10,7 +10,7 @@ microrb_load_file_cxt(mrb_state *mrb, FILE *fp, picorbc_context *cxt)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(fp, NULL, STREAM_TYPE_FILE);
-  ParserState *p = Compiler_parseInitState(si->node_box_size);
+  ParserState *p = Compiler_parseInitState(0, si->node_box_size);
   if (Compiler_compile(p, si, cxt)) {
     mrb_load_irep_cxt(mrb, p->scope->vm_code, cxt);
   } else {
@@ -93,7 +93,7 @@ microrb_load_string_cxt(mrb_state *mrb, const char *str, picorbc_context *cxt)
 {
   mrb_value ret;
   StreamInterface *si = StreamInterface_new(NULL, (char *)str, STREAM_TYPE_MEMORY);
-  ParserState *p = Compiler_parseInitState(si->node_box_size);
+  ParserState *p = Compiler_parseInitState(0, si->node_box_size);
   if (Compiler_compile(p, si, cxt)) {
     mrb_load_irep_cxt(mrb, p->scope->vm_code, cxt);
   } else {
