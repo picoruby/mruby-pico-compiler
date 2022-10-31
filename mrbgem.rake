@@ -205,7 +205,8 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
                                   #{lib_dir}/lemon
                                   #{include_dir}/ptr_size.h) do
     require "open3"
-    cmd = "cd #{src_dir} && #{qemu} #{lib_dir}/lemon -p #{ENV['LEMON_MACRO']} ./parse.y"
+    flags = cc.defines.uniq.map{ |d| "-D#{d}" }.join(' ')
+    cmd = "cd #{src_dir} && #{qemu} #{lib_dir}/lemon -p #{flags} ./parse.y"
     puts cmd
     out, err = Open3.capture3(cmd)
     puts out
