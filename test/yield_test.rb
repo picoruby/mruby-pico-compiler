@@ -18,4 +18,14 @@ class YieldTest < PicoRubyTest
       puts "Hello #{x}#{v}"
     end
   RUBY
+
+  desc "bang yield self"
+  assert_equal(<<~'RUBY', "false")
+    def my_method
+      puts false  if ! yield self
+    end
+    my_method do
+      false
+    end
+  RUBY
 end

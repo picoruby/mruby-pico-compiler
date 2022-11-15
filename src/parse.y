@@ -1035,6 +1035,8 @@ command_rhs    ::= command_asgn.
 expr ::= command_call.
 expr(A) ::= expr(B) KW_and expr(C). { A = new_and(p, B, C); }
 expr(A) ::= expr(B) KW_or expr(C). { A = new_or(p, B, C); }
+expr(A) ::= KW_not opt_nl expr(B). { A = call_uni_op(p, B, "!"); }
+expr(A) ::= UNEG command_call(B). { A = call_uni_op(p, B, "!"); }
 expr ::= arg.
 
 defn_head(A) ::= KW_def fname(C). {
