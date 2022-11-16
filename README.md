@@ -8,18 +8,8 @@ MRuby::Build.new do |conf|
 
     # ... (snip) ...
 
-    conf.gem :github => 'hasumikin/mruby-pico-compiler'
+    conf.gem :github => 'picoruby/mruby-pico-compiler'
 end
-```
-## example
-```ruby
-p PicoCompiler.hi
-#=> "hi!!"
-t = PicoCompiler.new "hello"
-p t.hello
-#=> "hello"
-p t.bye
-#=> "hello bye"
 ```
 
 ## License
