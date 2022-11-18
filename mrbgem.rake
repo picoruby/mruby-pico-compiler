@@ -18,12 +18,6 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   lib_dir = "#{dir}/lib"
   spec.cc.include_paths << include_dir
 
-  qemu = if dir.end_with?("host/mruby-pico-compiler")
-           ""
-         else
-           ENV['QEMU']
-         end
-
   Dir.glob("#{src_dir}/*.c").each do |src|
     file objfile(src.pathmap "#{build_dir}/src/%n") => [src, "#{include_dir}/parse_header.h"] do |f|
       cc.run f.name, src
@@ -170,19 +164,6 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
     end
   end
 
-  file "#{include_dir}/ptr_size.h" => ["#{lib_dir}/ptr_size_generator", include_dir] do
-    sh "cd #{lib_dir} && #{qemu} ./ptr_size_generator && mv ptr_size.h #{include_dir}"
-  end
-
-  file "#{lib_dir}/ptr_size_generator" => "#{lib_dir}/ptr_size_generator.c" do |f|
-    command = if cc.command == "arm-none-eabi-gcc"
-      cc.alt_command
-    else
-      cc.command
-    end
-    sh "cd #{lib_dir} && #{command} #{cc.flags.flatten.reject{|f|f.include?("-mcpu=")}.join(' ')} -static -fPIC -o ptr_size_generator ptr_size_generator.c"
-  end
-
   file objfile("#{build_dir}/src/parse") => "#{src_dir}/parse.c" do |f|
     cc.run f.name, f.prerequisites.first
   end
@@ -206,7 +187,7 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
                                   #{include_dir}/ptr_size.h) do
     require "open3"
     flags = cc.defines.uniq.map{ |d| "-D#{d}" }.join(' ')
-    cmd = "cd #{src_dir} && #{qemu} #{lib_dir}/lemon -p #{flags} ./parse.y"
+    cmd = "cd #{src_dir} && #{lib_dir}/lemon -p #{flags} ./parse.y"
     puts cmd
     out, err = Open3.capture3(cmd)
     puts out
@@ -219,11 +200,11 @@ MRuby::Gem::Specification.new('mruby-pico-compiler') do |spec|
   end
 
   file "#{lib_dir}/lemon" => %W(#{lib_dir}/lemon.c) do |f|
-    command, flags = if cc.command == "arm-none-eabi-gcc"
-      cc.alt_command
+    command, flags = if cc.command.start_with?("arm-") # FIXME: This works only on x64
+      cc.host_command || "gcc"
     else
       cc.command
     end
-    sh "#{command} #{cc.flags.flatten.reject{|f|f.include?("-mcpu=")}.join(" ")} -static -fPIC -o #{f.name} #{f.prerequisites.first}"
+    sh "#{command} #{cc.flags.flatten.reject{|f|f.include?("-mcpu=") || f.include?("-mthumb")}.join(" ")} -o #{f.name} #{f.prerequisites.first}"
   end
 end

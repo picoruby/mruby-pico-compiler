@@ -1,3 +1,8 @@
+/*
+ * Deprecated on Nov 18 2022
+ *   This code is not used anymore
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 
