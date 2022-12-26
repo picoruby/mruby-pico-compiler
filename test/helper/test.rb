@@ -76,25 +76,27 @@ class PicoRubyTest
       @@pending_count += 1
       return
     end
+    GC.disable # To keep temporary files
     if @@vm_select == :mruby
       rbfile = String.new
       mrbfile = String.new
       actual = nil
-      Tempfile.open do |f|
+      temp_rbfile = Tempfile.open do |f|
         f.puts script
-        rbfile = f.path
+        f
       end
-      Tempfile.open do |f|
-        mrbfile = f.path
-        # For GitHub Actions
-        FileUtils.chmod 0755, rbfile
-        FileUtils.chmod 0755, mrbfile
-        `#{@@picorbc_path} #{rbfile} -o #{mrbfile}`
-      end
+      rbfile = temp_rbfile.path
+      temp_mrbfile = Tempfile.open
+      mrbfile = temp_mrbfile.path
+      # For GitHub Actions
+      FileUtils.chmod 0755, rbfile
+      FileUtils.chmod 0755, mrbfile
+      `#{@@picorbc_path} #{rbfile} -o #{mrbfile}`
       actual = `#{@@mruby_path} -b '#{mrbfile}'`.chomp.gsub(/\r/, "")
     else
       actual = `#{@@mruby_path} -e '#{script}'`.chomp.gsub(/\r/, "")
     end
+    GC.enable
     if actual == expected
       print "#{@@green}."
       @@success_count += 1
