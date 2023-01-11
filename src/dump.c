@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
 #include <value.h>
 #include <common.h>
@@ -68,7 +69,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
   len += *(irep + 13) << 16;
   len += *(irep + 14) << 8;
   len += *(irep + 15);
-  fprintf(fp, "pos: %d / len: %lu\n", *irep, len);
+  fprintf(fp, "pos: %d / len: %"PRId32"\n", *irep, len);
 
   irep += 16; /* skip irep header */
 
@@ -90,7 +91,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       return;
       break;
     CASE(OP_MOVE, BB);
-      fprintf(fp, "OP_MOVE\tR%ld\tR%d\t", a, b);
+      fprintf(fp, "OP_MOVE\tR%"PRId32"\tR%d\t", a, b);
       print_lv_ab(mrb, irep, a, b);
       break;
 //    CASE(OP_LOADL16, BS);
@@ -113,29 +114,29 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
 //        break;
 //#endif
 //      default:
-        fprintf(fp, "OP_LOADL\tR%ld\tL(%d)\t", a, b);
+        fprintf(fp, "OP_LOADL\tR%"PRId32"\tL(%d)\t", a, b);
         break;
 //      }
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADI, BB);
-      fprintf(fp, "OP_LOADI\tR%ld\t%d\t", a, b);
+      fprintf(fp, "OP_LOADI\tR%"PRId32"\t%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADINEG, BB);
-      fprintf(fp, "OP_LOADI\tR%ld\t-%d\t", a, b);
+      fprintf(fp, "OP_LOADI\tR%"PRId32"\t-%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADI16, BS);
-      fprintf(fp, "OP_LOADI16\tR%ld\t%d\t", a, (int)(int16_t)b);
+      fprintf(fp, "OP_LOADI16\tR%"PRId32"\t%d\t", a, (int)(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADI32, BSS);
-      fprintf(fp, "OP_LOADI32\tR%ld\t%ld\t", a, (int32_t)(((uint32_t)b<<16)+c));
+      fprintf(fp, "OP_LOADI32\tR%"PRId32"\t%d\t", a, (int32_t)(((uint32_t)b<<16)+c));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADI__1, B);
-      fprintf(fp, "OP_LOADI__1\tR%ld\t\t", a);
+      fprintf(fp, "OP_LOADI__1\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADI_0, B); goto L_LOADI;
@@ -147,86 +148,86 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
     CASE(OP_LOADI_6, B); goto L_LOADI;
     CASE(OP_LOADI_7, B);
     L_LOADI:
-      fprintf(fp, "OP_LOADI_%d\tR%ld\t\t", ins-(int)OP_LOADI_0, a);
+      fprintf(fp, "OP_LOADI_%d\tR%"PRId32"\t\t", ins-(int)OP_LOADI_0, a);
       print_lv_a(mrb, irep, a);
       break;
 //    CASE(OP_LOADSYM16, BS);
 //      goto op_loadsym;
     CASE(OP_LOADSYM, BB);
 //    op_loadsym:
-      fprintf(fp, "OP_LOADSYM\tR%ld\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_LOADSYM\tR%"PRId32"\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADNIL, B);
-      fprintf(fp, "OP_LOADNIL\tR%ld\t\t", a);
+      fprintf(fp, "OP_LOADNIL\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADSELF, B);
-      fprintf(fp, "OP_LOADSELF\tR%ld\t\t", a);
+      fprintf(fp, "OP_LOADSELF\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADT, B);
-      fprintf(fp, "OP_LOADT\tR%ld\t\t", a);
+      fprintf(fp, "OP_LOADT\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LOADF, B);
-      fprintf(fp, "OP_LOADF\tR%ld\t\t", a);
+      fprintf(fp, "OP_LOADF\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETGV, BB);
-      fprintf(fp, "OP_GETGV\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETGV\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETGV, BB);
-      fprintf(fp, "OP_SETGV\t:%s\tR%ld", pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETGV\t:%s\tR%"PRId32"", pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETSV, BB);
-      fprintf(fp, "OP_GETSV\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETSV\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETSV, BB);
-      fprintf(fp, "OP_SETSV\t:%s\tR%ld", pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETSV\t:%s\tR%"PRId32"", pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETCONST, BB);
-      fprintf(fp, "OP_GETCONST\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETCONST\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETCONST, BB);
-      fprintf(fp, "OP_SETCONST\t:%s\tR%ld", pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETCONST\t:%s\tR%"PRId32"", pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETMCNST, BB);
-      fprintf(fp, "OP_GETMCNST\tR%ld\tR%ld::%s", a, a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETMCNST\tR%"PRId32"\tR%"PRId32"::%s", a, a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETMCNST, BB);
-      fprintf(fp, "OP_SETMCNST\tR%ld::%s\tR%ld", a+1, pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETMCNST\tR%"PRId32"::%s\tR%"PRId32"", a+1, pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETIV, BB);
-      fprintf(fp, "OP_GETIV\tR%ld\t%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETIV\tR%"PRId32"\t%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETIV, BB);
-      fprintf(fp, "OP_SETIV\t%s\tR%ld", pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETIV\t%s\tR%"PRId32"", pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETUPVAR, BBB);
-      fprintf(fp, "OP_GETUPVAR\tR%ld\t%d\t%d", a, b, c);
+      fprintf(fp, "OP_GETUPVAR\tR%"PRId32"\t%d\t%d", a, b, c);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETUPVAR, BBB);
-      fprintf(fp, "OP_SETUPVAR\tR%ld\t%d\t%d", a, b, c);
+      fprintf(fp, "OP_SETUPVAR\tR%"PRId32"\t%d\t%d", a, b, c);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_GETCV, BB);
-      fprintf(fp, "OP_GETCV\tR%ld\t%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_GETCV\tR%"PRId32"\t%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SETCV, BB);
-      fprintf(fp, "OP_SETCV\t%s\tR%ld", pico_mrb_sym_dump(mrb, b), a);
+      fprintf(fp, "OP_SETCV\t%s\tR%"PRId32"", pico_mrb_sym_dump(mrb, b), a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_JMP, S);
@@ -239,45 +240,45 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       break;
     CASE(OP_JMPIF, BS);
       i = irep - opstart;
-      fprintf(fp, "OP_JMPIF\tR%ld\t%03d\t", a, (int)i+(int16_t)b);
+      fprintf(fp, "OP_JMPIF\tR%"PRId32"\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_JMPNOT, BS);
       i = irep - opstart;
-      fprintf(fp, "OP_JMPNOT\tR%ld\t%03d\t", a, (int)i+(int16_t)b);
+      fprintf(fp, "OP_JMPNOT\tR%"PRId32"\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_JMPNIL, BS);
       i = irep - opstart;
-      fprintf(fp, "OP_JMPNIL\tR%ld\t%03d\t", a, (int)i+(int16_t)b);
+      fprintf(fp, "OP_JMPNIL\tR%"PRId32"\t%03d\t", a, (int)i+(int16_t)b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SSEND, BBB);
-      fprintf(fp, "OP_SSEND\tR%ld\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SSEND\tR%"PRId32"\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_SSENDB, BBB);
-      fprintf(fp, "OP_SSENDB\tR%ld\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SSENDB\tR%"PRId32"\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_SEND, BBB);
-      fprintf(fp, "OP_SEND\tR%ld\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SEND\tR%"PRId32"\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_SENDB, BBB);
-      fprintf(fp, "OP_SENDB\tR%ld\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
+      fprintf(fp, "OP_SENDB\tR%"PRId32"\t:%s\t%d", a, pico_mrb_sym_dump(mrb, b), c);
       break;
     CASE(OP_GETIDX, B);
-      fprintf(fp, "OP_GETIDX\tR%ld\t(R%ld)", a, a + 1);
+      fprintf(fp, "OP_GETIDX\tR%"PRId32"\t(R%"PRId32")", a, a + 1);
       break;
     CASE(OP_SETIDX, B);
-      fprintf(fp, "OP_SETIDX\tR%ld\t(R%ld)\t(R%ld)", a, a + 1, a + 2);
+      fprintf(fp, "OP_SETIDX\tR%"PRId32"\t(R%"PRId32")\t(R%"PRId32")", a, a + 1, a + 2);
       break;
     CASE(OP_CALL, Z);
       fprintf(fp, "OP_CALL\n");
       break;
     CASE(OP_SUPER, BB);
-      fprintf(fp, "OP_SUPER\tR%ld\t%d", a, b);
+      fprintf(fp, "OP_SUPER\tR%"PRId32"\t%d", a, b);
       break;
     CASE(OP_ARGARY, BS);
-      fprintf(fp, "OP_ARGARY\tR%ld\t%d:%d:%d:%d (%d)", a,
+      fprintf(fp, "OP_ARGARY\tR%"PRId32"\t%d:%d:%d:%d (%d)", a,
              (b>>11)&0x3f,
              (b>>10)&0x1,
              (b>>5)&0x1f,
@@ -286,7 +287,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ENTER, W);
-      fprintf(fp, "OP_ENTER\t%ld:%ld:%ld:%ld:%ld:%ld:%ld",
+      fprintf(fp, "OP_ENTER\t%"PRId32":%"PRId32":%"PRId32":%"PRId32":%"PRId32":%"PRId32":%"PRId32"",
              PICORB_ASPEC_REQ(a),
              PICORB_ASPEC_OPT(a),
              PICORB_ASPEC_REST(a),
@@ -296,30 +297,30 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
              PICORB_ASPEC_BLOCK(a));
       break;
     CASE(OP_KEY_P, BB);
-      fprintf(fp, "OP_KEY_P\tR%ld\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_KEY_P\tR%"PRId32"\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_KEYEND, Z);
       fprintf(fp, "OP_KEYEND\n");
       break;
     CASE(OP_KARG, BB);
-      fprintf(fp, "OP_KARG\tR%ld\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_KARG\tR%"PRId32"\t:%s\t", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_RETURN, B);
-      fprintf(fp, "OP_RETURN\tR%ld\t\t", a);
+      fprintf(fp, "OP_RETURN\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_RETURN_BLK, B);
-      fprintf(fp, "OP_RETURN_BLK\tR%ld\t\t", a);
+      fprintf(fp, "OP_RETURN_BLK\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_BREAK, B);
-      fprintf(fp, "OP_BREAK\tR%ld\t\t", a);
+      fprintf(fp, "OP_BREAK\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_BLKPUSH, BS);
-      fprintf(fp, "OP_BLKPUSH\tR%ld\t%d:%d:%d:%d (%d)", a,
+      fprintf(fp, "OP_BLKPUSH\tR%"PRId32"\t%d:%d:%d:%d (%d)", a,
              (b>>11)&0x3f,
              (b>>10)&0x1,
              (b>>5)&0x1f,
@@ -328,22 +329,22 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_LAMBDA, BB);
-      fprintf(fp, "OP_LAMBDA\tR%ld\tI(%d:%p)", a, b, NULL);
+      fprintf(fp, "OP_LAMBDA\tR%"PRId32"\tI(%d:%p)", a, b, NULL);
       break;
     CASE(OP_BLOCK, BB);
-      fprintf(fp, "OP_BLOCK\tR%ld\tI(%d:%p)", a, b, NULL);
+      fprintf(fp, "OP_BLOCK\tR%"PRId32"\tI(%d:%p)", a, b, NULL);
       break;
     CASE(OP_METHOD, BB);
-      fprintf(fp, "OP_METHOD\tR%ld\tI(%d:%p)", a, b, NULL);
+      fprintf(fp, "OP_METHOD\tR%"PRId32"\tI(%d:%p)", a, b, NULL);
       break;
     CASE(OP_RANGE_INC, B);
-      fprintf(fp, "OP_RANGE_INC\tR%ld\n", a);
+      fprintf(fp, "OP_RANGE_INC\tR%"PRId32"\n", a);
       break;
     CASE(OP_RANGE_EXC, B);
-      fprintf(fp, "OP_RANGE_EXC\tR%ld\n", a);
+      fprintf(fp, "OP_RANGE_EXC\tR%"PRId32"\n", a);
       break;
     CASE(OP_DEF, BB);
-      fprintf(fp, "OP_DEF\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_DEF\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       break;
     CASE(OP_UNDEF, B);
       fprintf(fp, "OP_UNDEF\t:%s", pico_mrb_sym_dump(mrb, b));
@@ -352,72 +353,72 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       fprintf(fp, "OP_ALIAS\t:%s\t%s", pico_mrb_sym_dump(mrb, b), pico_mrb_sym_dump(mrb, b));
       break;
     CASE(OP_ADD, B);
-      fprintf(fp, "OP_ADD\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_ADD\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_ADDI, BB);
-      fprintf(fp, "OP_ADDI\tR%ld\t%d", a, b);
+      fprintf(fp, "OP_ADDI\tR%"PRId32"\t%"PRId16"", a, b);
       break;
     CASE(OP_SUB, B);
-      fprintf(fp, "OP_SUB\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_SUB\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_SUBI, BB);
-      fprintf(fp, "OP_SUBI\tR%ld\t%d", a, b);
+      fprintf(fp, "OP_SUBI\tR%"PRId32"\t%"PRId16"", a, b);
       break;
     CASE(OP_MUL, B);
-      fprintf(fp, "OP_MUL\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_MUL\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_DIV, B);
-      fprintf(fp, "OP_DIV\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_DIV\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_LT, B);
-      fprintf(fp, "OP_LT\t\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_LT\t\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_LE, B);
-      fprintf(fp, "OP_LE\t\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_LE\t\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_GT, B);
-      fprintf(fp, "OP_GT\t\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_GT\t\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_GE, B);
-      fprintf(fp, "OP_GE\t\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_GE\t\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_EQ, B);
-      fprintf(fp, "OP_EQ\t\tR%ld\tR%ld", a, a+1);
+      fprintf(fp, "OP_EQ\t\tR%"PRId32"\tR%"PRId32"", a, a+1);
       break;
     CASE(OP_ARRAY, BB);
-      fprintf(fp, "OP_ARRAY\tR%ld\t(R%ld)\t%d\t", a, a, b);
+      fprintf(fp, "OP_ARRAY\tR%"PRId32"\t(R%"PRId32")\t%d\t", a, a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ARRAY2, BBB);
-      fprintf(fp, "OP_ARRAY\tR%ld\tR%d\t%d\t", a, b, c);
+      fprintf(fp, "OP_ARRAY\tR%"PRId32"\tR%d\t%d\t", a, b, c);
       print_lv_ab(mrb, irep, a, b);
       break;
     CASE(OP_ARYCAT, B);
-      fprintf(fp, "OP_ARYCAT\tR%ld\t(R%ld)\t", a, a+1);
+      fprintf(fp, "OP_ARYCAT\tR%"PRId32"\t(R%"PRId32")\t", a, a+1);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ARYPUSH, BB);
-      fprintf(fp, "OP_ARYPUSH\tR%ld\t%d\t", a, b);
+      fprintf(fp, "OP_ARYPUSH\tR%"PRId32"\t%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ARYDUP, B);
-      fprintf(fp, "OP_ARYDUP\tR%ld\t", a);
+      fprintf(fp, "OP_ARYDUP\tR%"PRId32"\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_AREF, BBB);
-      fprintf(fp, "OP_AREF\tR%ld\tR%d\t%d", a, b, c);
+      fprintf(fp, "OP_AREF\tR%"PRId32"\tR%d\t%d", a, b, c);
       print_lv_ab(mrb, irep, a, b);
       break;
     CASE(OP_ASET, BBB);
-      fprintf(fp, "OP_ASET\tR%ld\tR%d\t%d", a, b, c);
+      fprintf(fp, "OP_ASET\tR%"PRId32"\tR%d\t%d", a, b, c);
       print_lv_ab(mrb, irep, a, b);
       break;
     CASE(OP_APOST, BBB);
-      fprintf(fp, "OP_APOST\tR%ld\t%d\t%d", a, b, c);
+      fprintf(fp, "OP_APOST\tR%"PRId32"\t%d\t%d", a, b, c);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_INTERN, B);
-      fprintf(fp, "OP_INTERN\tR%ld", a);
+      fprintf(fp, "OP_INTERN\tR%"PRId32"", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_STRING, BB);
@@ -426,49 +427,49 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
 //        fprintf(fp, "OP_STRING\tR%ld\tL(%d)\t; %s", a, b, irep->pool[b].u.str);
 //      }
 //      else {
-        fprintf(fp, "OP_STRING\tR%ld\tL(%d)\t", a, b);
+        fprintf(fp, "OP_STRING\tR%"PRId32"\tL(%d)\t", a, b);
 //      }
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_STRCAT, B);
-      fprintf(fp, "OP_STRCAT\tR%ld\t(R%ld)\t", a, a + 1);
+      fprintf(fp, "OP_STRCAT\tR%"PRId32"\t(R%"PRId32")\t", a, a + 1);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_HASH, BB);
-      fprintf(fp, "OP_HASH\tR%ld\t%d\t", a, b);
+      fprintf(fp, "OP_HASH\tR%"PRId32"\t%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_HASHADD, BB);
-      fprintf(fp, "OP_HASHADD\tR%ld\t%d\t", a, b);
+      fprintf(fp, "OP_HASHADD\tR%"PRId32"\t%d\t", a, b);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_HASHCAT, B);
-      fprintf(fp, "OP_HASHCAT\tR%ld\t", a);
+      fprintf(fp, "OP_HASHCAT\tR%"PRId32"\t", a);
       print_lv_a(mrb, irep, a);
       break;
 
     CASE(OP_OCLASS, B);
-      fprintf(fp, "OP_OCLASS\tR%ld\t\t", a);
+      fprintf(fp, "OP_OCLASS\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_CLASS, BB);
-      fprintf(fp, "OP_CLASS\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_CLASS\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_MODULE, BB);
-      fprintf(fp, "OP_MODULE\tR%ld\t:%s", a, pico_mrb_sym_dump(mrb, b));
+      fprintf(fp, "OP_MODULE\tR%"PRId32"\t:%s", a, pico_mrb_sym_dump(mrb, b));
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_EXEC, BB);
-      fprintf(fp, "OP_EXEC\tR%ld\tI(%d:%p)", a, b, NULL);
+      fprintf(fp, "OP_EXEC\tR%"PRId32"\tI(%d:%p)", a, b, NULL);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_SCLASS, B);
-      fprintf(fp, "OP_SCLASS\tR%ld\t", a);
+      fprintf(fp, "OP_SCLASS\tR%"PRId32"\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_TCLASS, B);
-      fprintf(fp, "OP_TCLASS\tR%ld\t\t", a);
+      fprintf(fp, "OP_TCLASS\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_ERR, B);
@@ -476,24 +477,24 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
  //       fprintf(fp, "OP_ERR\t%s\n", irep->pool[a].u.str);
  //     }
  //     else {
-        fprintf(fp, "OP_ERR\tL(%ld)\n", a);
+        fprintf(fp, "OP_ERR\tL(%"PRId32")\n", a);
 //      }
       break;
     CASE(OP_EXCEPT, B);
-      fprintf(fp, "OP_EXCEPT\tR%ld\t\t", a);
+      fprintf(fp, "OP_EXCEPT\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_RESCUE, BB);
-      fprintf(fp, "OP_RESCUE\tR%ld\tR%d", a, b);
+      fprintf(fp, "OP_RESCUE\tR%"PRId32"\tR%d", a, b);
       print_lv_ab(mrb, irep, a, b);
       break;
     CASE(OP_RAISEIF, B);
-      fprintf(fp, "OP_RAISEIF\tR%ld\t\t", a);
+      fprintf(fp, "OP_RAISEIF\tR%"PRId32"\t\t", a);
       print_lv_a(mrb, irep, a);
       break;
 
     CASE(OP_DEBUG, BBB);
-      fprintf(fp, "OP_DEBUG\t%ld\t%d\t%d\n", a, b, c);
+      fprintf(fp, "OP_DEBUG\t%"PRId32"\t%d\t%d\n", a, b, c);
       break;
 
     CASE(OP_STOP, Z);
@@ -941,7 +942,7 @@ cdump_irep_struct(Scope *scope, uint8_t flags, FILE *fp, const char *name, int n
   else {
     fputs("  NULL,\t\t\t\t\t/* debug_info */\n", fp);
   }
-  fprintf(fp,   "  %ld,%d,%d,%d,0\n};\n", scope->ilen, scope->plen, scope->slen, scope->nlowers);
+  fprintf(fp,   "  %"PRId32",%d,%d,%d,0\n};\n", scope->ilen, scope->plen, scope->slen, scope->nlowers);
 
   return PICORB_DUMP_OK;
 }
