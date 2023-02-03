@@ -229,7 +229,15 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
       }
       if (node->cons.cdr && node->cons.cdr->cons.cdr) {
         if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
-          result->nargs++;
+          Node *kw_arg = node->cons.cdr->cons.cdr->cons.car->cons.cdr;
+          for (;;) {
+            if (kw_arg && Node_atomType(kw_arg->cons.car) == ATOM_assoc_new) {
+              result->nargs += 1<<4;
+            } else {
+              break;
+            }
+            kw_arg = kw_arg->cons.cdr;
+          }
         }
         if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg){
           block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
@@ -569,7 +577,7 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
   scope->g->nargs_after_splat = prev_nargs_after_splat;
 }
 
-void gen_hash(Scope *scope, Node *node)
+void gen_hash(Scope *scope, Node *node, bool skip_op_hash)
 {
   int reg = scope->sp;
   int nassocs = 0;
@@ -594,20 +602,22 @@ void gen_hash(Scope *scope, Node *node)
       split = true;
     }
   }
-  if (nassocs == 0) {
-    Scope_pushCode(OP_HASH);
-    Scope_pushCode(reg);
-    Scope_pushCode(0);
-  } else {
-    nassocs %= PICORUBY_HASH_SPLIT_COUNT;
-    if (nassocs) {
-      if (!split) {
-        Scope_pushCode(OP_HASH);
-      } else {
-        Scope_pushCode(OP_HASHADD);
-      }
+  if (!skip_op_hash) {
+    if (nassocs == 0) {
+      Scope_pushCode(OP_HASH);
       Scope_pushCode(reg);
-      Scope_pushCode(nassocs);
+      Scope_pushCode(0);
+    } else {
+      nassocs %= PICORUBY_HASH_SPLIT_COUNT;
+      if (nassocs) {
+        if (!split) {
+          Scope_pushCode(OP_HASH);
+        } else {
+          Scope_pushCode(OP_HASHADD);
+        }
+        Scope_pushCode(reg);
+        Scope_pushCode(nassocs);
+      }
     }
   }
   Scope_setSp(scope, reg);
@@ -1525,8 +1535,17 @@ uint32_t setup_parameters(Scope *scope, Node *node)
   Node *args_tail = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
   if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
   { /* kw_args */
-    Node *kw_args = args_tail->cons.cdr->cons.car;
-    // TODO
+    Node *kw_args = args_tail->cons.cdr->cons.car->cons.cdr;
+    int kw_args_num = 0;
+    for (;;) {
+      if (kw_args && Node_atomType(kw_args->cons.car) == ATOM_args_tail_kw_arg) {
+        kw_args_num++;
+      } else {
+        break;
+      }
+      kw_args = kw_args->cons.cdr;
+    }
+    bbb += kw_args_num<<2;
   }
   { /* kw_rest_args */
     Node *kw_rest_args = args_tail->cons.cdr->cons.cdr->cons.car;
@@ -2150,7 +2169,7 @@ void codegen(Scope *scope, Node *tree)
       gen_array(scope, tree, 0);
       break;
     case ATOM_hash:
-      gen_hash(scope, tree->cons.cdr);
+      gen_hash(scope, tree->cons.cdr, false);
       break;
     case ATOM_at_ivar:
     case ATOM_at_gvar:
@@ -2209,7 +2228,7 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_kw_hash:
       Scope_push(scope);
-      codegen(scope, tree->cons.cdr);
+      gen_hash(scope, tree->cons.cdr, true);
       break;
     case ATOM_block_arg:
       codegen(scope, tree->cons.cdr);
