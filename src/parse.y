@@ -623,6 +623,15 @@
   static Node*
   new_kw_arg(ParserState *p, const char *kw, Node *a)
   {
+    LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, kw);
+    if (lvar.scope_num == 0 && 0 < lvar.reg_num) {
+      ERRORP("duplicated argument name");
+      p->error_count++;
+    } else {
+      local_add_f(p, "**");
+      local_add_f(p, "*");
+      local_add_f(p, kw);
+    }
     return cons(atom(ATOM_args_tail_kw_arg), list2(literal(kw), a));
   }
 
