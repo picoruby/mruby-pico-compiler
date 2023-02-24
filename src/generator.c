@@ -1501,6 +1501,22 @@ setup_parameters_sub(Node *node, uint32_t *bbb, int shift_size)
   }
 }
 
+/*
+ * bbb: 000000000000000000000000
+ *       ^^^^^     ^     ^^^^^ ^
+ *      ^     ^^^^^ ^^^^^     ^
+ *      x  m1    o r  m2   k  db
+ * range| size |area|descripiton
+ * -----|------|----|-----------
+ * 23   |      |  x |not in use
+ * 22-18|5 bits| m1 |mandatory 1
+ * 17-13|5 bits|  o |option
+ *    12|1 bit |  r |rest
+ * 11- 7|5 bits| m2 |mandatory 2
+ *  6- 2|5 bits|  k |keyword
+ *     1|1 bit |  d |dictionary
+ *     0|1 bit |  b |block
+ */
 uint32_t setup_parameters(Scope *scope, Node *node)
 {
   uint32_t bbb = 0;
@@ -1793,8 +1809,8 @@ void gen_super_bb(Scope *scope)
   uint32_t bbb = scope->irep_parameters;
   uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
                 (bbb>>7 & 0x3f) << 5 |                              // r m2
-                (bbb>>1 & 1) << 4;                                  // d
-                /* TODO: lv */
+                (bbb>>1 & 1) << 4 |                                 // d
+                (bbb>>2 & 0x1f ) << 4;                              // keyword -> lv
   Scope_pushCode((uint8_t)(bb >> 8));
   Scope_pushCode((uint8_t)(bb & 0xff));
 }
@@ -2252,6 +2268,7 @@ void codegen(Scope *scope, Node *tree)
     case ATOM_kw_hash:
       Scope_push(scope);
       gen_hash(scope, tree->cons.cdr, true);
+      Scope_push(scope);
       break;
     case ATOM_block_arg:
       codegen(scope, tree->cons.cdr);

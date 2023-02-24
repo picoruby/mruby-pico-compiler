@@ -23,5 +23,23 @@ class KargTest < PicoRubyTest
     end
     m3("dummy", "dummy", k3: 1, k2: 2, k1: 10)
   RUBY
+
+  desc "block argument"
+  assert_equal(<<~RUBY, "25")
+    p = Proc.new do |a:, b: 11|
+      a + b
+    end
+    puts p.call(b: 12, a: 13)
+  RUBY
+
+  desc "block argument 2"
+  assert_equal(<<~RUBY, "{:a=>0}")
+    def task(opt: {})
+      yield(opt)
+    end
+    task(opt: {a: 0}) do |opt|
+      p opt
+    end
+  RUBY
 end
 
