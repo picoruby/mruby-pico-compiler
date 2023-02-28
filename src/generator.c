@@ -1625,7 +1625,9 @@ void gen_irep(Scope *scope, Node *node)
         if (label_2) backpatch_jmpLabel(label_2, scope->vm_code_size);
         Scope_push(scope);
       }
-      Scope_pushCode(OP_KEYEND);
+      if (bbb & 0b10 == 0) {
+        Scope_pushCode(OP_KEYEND);
+      }
     }
   }
   { /* inside def */

@@ -41,5 +41,13 @@ class KargTest < PicoRubyTest
       p opt
     end
   RUBY
+
+  desc "karg and dict"
+  assert_equal(<<~RUBY, "10")
+    def combined_with_dict(k1: 0, k2:, **dict)
+      k1 + k2 + dict[:k3] + dict[:k4]
+    end
+    p combined_with_dict(k2: 2, k1: 1, k3: 3, k4: 4)
+  RUBY
 end
 
