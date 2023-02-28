@@ -607,14 +607,37 @@
     local_add_f(p, blk ? blk : "&");
   }
 
+  static bool
+  replace_lvar(ParserState *p, const char *search, const char *replace)
+  {
+    Lvar *lvar = p->scope->lvar;
+    while (lvar) {
+      if (strcmp(lvar->name, search) == 0) {
+        /* already set in new_kw_arg() */
+        lvar->name = replace;
+        return true;
+      }
+      lvar = lvar->next;
+    }
+    return false;
+  }
+
   static Node*
   new_args_tail(ParserState *p, Node *kws, Node *kwrest, const char *blk)
   {
-    local_add_blk(p, blk);
+    if (kwrest) {
+      replace_lvar(p, "**", kwrest->value.name);
+    }
+    if (blk) {
+      if (!replace_lvar(p, "&", blk)) {
+        local_add_blk(p, blk);
+      }
+    } else {
+      local_add_blk(p, "&");
+    }
     return list4(
       atom(ATOM_args_tail),
       cons(atom(ATOM_args_tail_kw_args), kws),
-      //kwrest,
       list2(atom(ATOM_args_tail_kw_rest_args), kwrest),
       list2(atom(ATOM_args_tail_block), literal(blk))
     );
@@ -623,6 +646,16 @@
   static Node*
   new_kw_arg(ParserState *p, const char *kw, Node *a)
   {
+    LvarScopeReg lvar = Scope_lvar_findRegnum(p->scope, kw);
+    if (lvar.scope_num == 0 && 0 < lvar.reg_num) {
+      ERRORP("duplicated argument name");
+      p->error_count++;
+    } else {
+      /* reserve reg. will possibly be overridden in new_args_tail() */
+      local_add_f(p, "**");
+      local_add_f(p, "&");
+      local_add_f(p, kw);
+    }
     return cons(atom(ATOM_args_tail_kw_arg), list2(literal(kw), a));
   }
 

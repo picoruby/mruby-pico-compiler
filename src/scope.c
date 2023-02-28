@@ -38,8 +38,7 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->first_code_pool->index = IREP_HEADER_SIZE;
   self->nlocals = 1;
   self->sp = 1;
-  self->rlen = 1;
-  self->exc_handler = NULL;
+  self->rlen = 1; self->exc_handler = NULL;
   return self;
 }
 

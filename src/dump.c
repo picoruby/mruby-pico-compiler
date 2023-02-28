@@ -301,7 +301,7 @@ Dump_hexDump(FILE *fp, uint8_t *irep)
       print_lv_a(mrb, irep, a);
       break;
     CASE(OP_KEYEND, Z);
-      fprintf(fp, "OP_KEYEND\n");
+      fprintf(fp, "OP_KEYEND");
       break;
     CASE(OP_KARG, BB);
       fprintf(fp, "OP_KARG\tR%"PRId32"\t:%s\t", a, pico_mrb_sym_dump(mrb, b));

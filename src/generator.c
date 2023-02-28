@@ -206,6 +206,20 @@ int count_args(Scope *scope, Node *node)
   return total_nargs;
 }
 
+void
+gen_values_sub(Node **node, GenValuesResult **result, Node **block_node)
+{
+  if (Node_atomType(*node) == ATOM_block_arg){
+    (*result)->has_block_arg = true;
+    *block_node = *node;
+    *node = NULL;
+  } else if (Node_atomType(*node) == ATOM_block){
+    (*result)->has_block = true;
+    *block_node = *node;
+    *node = NULL;
+  }
+}
+
 void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
   result->op_send = OP_SEND;
@@ -214,8 +228,8 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
   int splat_pos = 0;
   Node *block_node = NULL;
   Node *node = tree;
-  while (node) {
-    Node *node2;
+  Node *node2;
+  while (1) {
     if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) {
       if (Node_atomType(node->cons.cdr->cons.car->cons.cdr->cons.car) == ATOM_NONE) {
         /* kw_hash is the first arg */
@@ -223,66 +237,36 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
         result->nargs--;
       }
       node2 = node->cons.cdr->cons.car->cons.cdr;
-      if (node2 && hasCar(node2) &&
-          Node_atomType(node2->cons.car) == ATOM_splat) {
+      if (node2 && Node_atomType(node2->cons.car) == ATOM_splat) {
         splat_pos = 1;
       }
       if (node->cons.cdr && node->cons.cdr->cons.cdr) {
-        if (Node_atomType(node->cons.cdr->cons.cdr->cons.car) == ATOM_kw_hash) {
-          result->nargs++;
-        }
-        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg){
-          block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
-          node->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
-          result->has_block_arg = true;
-        }
-        if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-          block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
-          node->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
-          result->has_block = true;
-        }
+        gen_values_sub(&node->cons.cdr->cons.cdr->cons.cdr->cons.car, &result, &block_node);
         /* FIXME: in case like `p(*3){}` that only has one splat */
         if (node->cons.cdr->cons.cdr->cons.cdr->cons.cdr) {
-          if (Node_atomType(node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-            block_node = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
-            node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
-            result->has_block = true;
-          }
+          gen_values_sub(&node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car, &result, &block_node);
         }
       }
       break;
     }
     if (hasCdr(node) && hasCar(node->cons.cdr)) result->nargs++;
     node2 = node->cons.cdr->cons.cdr;
-    if (node2 && hasCar(node2) &&
-        Node_atomType(node2->cons.car) == ATOM_splat) {
+    if (node2 && Node_atomType(node2->cons.car) == ATOM_splat) {
       splat_pos = result->nargs;
     }
     if (node2 && node2->cons.cdr) {
-      if (Node_atomType(node2->cons.cdr->cons.car) == ATOM_kw_hash) {
-        result->nargs++;
-      }
-      if (Node_atomType(node2->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
-        block_node = node2->cons.cdr->cons.cdr->cons.car;
-        node2->cons.cdr->cons.cdr->cons.car = NULL;
-        result->has_block_arg = true;
-      }
+      gen_values_sub(&node2->cons.cdr->cons.cdr->cons.car, &result, &block_node);
       if (node2->cons.cdr->cons.cdr->cons.cdr) {
-        if (Node_atomType(node2->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block) {
-          block_node = node2->cons.cdr->cons.cdr->cons.cdr->cons.car;
-          node2->cons.cdr->cons.cdr->cons.cdr->cons.car = NULL;
-          result->has_block = true;
-        }
+        gen_values_sub(&node2->cons.cdr->cons.cdr->cons.cdr->cons.car, &result, &block_node);
       }
     }
-    if (node->cons.cdr) {
-      node = node->cons.cdr->cons.car;
-    } else {
-      node = NULL;
-    }
+    if (!node->cons.cdr || !node->cons.cdr->cons.car) break;
+    node = node->cons.cdr->cons.car;
   }
-  if (splat_pos > 0) {
-    scope->g->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
+  { /* splat */
+    if (splat_pos > 0) {
+      scope->g->gen_splat_status = GEN_SPLAT_STATUS_BEFORE_SPLAT;
+    }
     if (splat_pos == 1) { // The first arg is a splat
       Scope_pushCode(OP_LOADNIL);
       Scope_pushCode(scope->sp);
@@ -290,23 +274,30 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
       scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     }
   }
+  { /* kw args */
+    if (tree->cons.cdr->cons.car) {
+      node2 = tree->cons.cdr->cons.car->cons.cdr->cons.cdr;
+      while (node2) {
+        if (Node_atomType(node2->cons.car) == ATOM_kw_hash) {
+          node2 = node2->cons.car->cons.cdr;
+          while (node2) {
+            if (Node_atomType(node2->cons.car) == ATOM_assoc_new) {
+              result->nargs += 1<<4;
+            }
+            node2 = node2->cons.cdr;
+          }
+          break;
+        }
+        node2 = node2->cons.cdr;
+      }
+    }
+  }
   codegen(scope, tree->cons.cdr->cons.car);
   scope->g->gen_splat_status = prev_gen_splat_status;
-  if (splat_pos > 0) {
-    result->has_splat = true;
-    if (block_node) {
-      codegen(scope, block_node);
-      result->op_send = OP_SENDB;
-    } else {
-      result->op_send = OP_SEND;
-    }
-  } else {
-    if (block_node) {
-      if (result->is_super && result->has_block) Scope_push(scope);
-      if (result->is_super && result->has_block) scope->sp--;
-      codegen(scope, block_node);
-      result->op_send = OP_SENDB;
-    }
+  if (splat_pos > 0) result->has_splat = true;
+  if (block_node) {
+    codegen(scope, block_node);
+    result->op_send = OP_SENDB;
   }
 }
 
@@ -569,7 +560,7 @@ void gen_array(Scope *scope, Node *node, Node *mlhs)
   scope->g->nargs_after_splat = prev_nargs_after_splat;
 }
 
-void gen_hash(Scope *scope, Node *node)
+void gen_hash(Scope *scope, Node *node, bool skip_op_hash)
 {
   int reg = scope->sp;
   int nassocs = 0;
@@ -594,20 +585,22 @@ void gen_hash(Scope *scope, Node *node)
       split = true;
     }
   }
-  if (nassocs == 0) {
-    Scope_pushCode(OP_HASH);
-    Scope_pushCode(reg);
-    Scope_pushCode(0);
-  } else {
-    nassocs %= PICORUBY_HASH_SPLIT_COUNT;
-    if (nassocs) {
-      if (!split) {
-        Scope_pushCode(OP_HASH);
-      } else {
-        Scope_pushCode(OP_HASHADD);
-      }
+  if (!skip_op_hash) {
+    if (nassocs == 0) {
+      Scope_pushCode(OP_HASH);
       Scope_pushCode(reg);
-      Scope_pushCode(nassocs);
+      Scope_pushCode(0);
+    } else {
+      nassocs %= PICORUBY_HASH_SPLIT_COUNT;
+      if (nassocs) {
+        if (!split) {
+          Scope_pushCode(OP_HASH);
+        } else {
+          Scope_pushCode(OP_HASHADD);
+        }
+        Scope_pushCode(reg);
+        Scope_pushCode(nassocs);
+      }
     }
   }
   Scope_setSp(scope, reg);
@@ -1497,36 +1490,66 @@ void gen_redo(Scope *scope)
   }
 }
 
+void
+setup_parameters_sub(Node *node, uint32_t *bbb, int shift_size)
+{
+  for (;;) {
+    if (!hasCar(node->cons.cdr)) break;
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_args_new) break;
+    *bbb += 1 << shift_size;
+    node = node->cons.cdr->cons.car;
+  }
+}
+
+/*
+ * bbb: 000000000000000000000000
+ *       ^^^^^     ^     ^^^^^ ^
+ *      ^     ^^^^^ ^^^^^     ^
+ *      x  m1    o r  m2   k  db
+ * range| size |area|descripiton
+ * -----|------|----|-----------
+ * 23   |      |  x |not in use
+ * 22-18|5 bits| m1 |mandatory 1
+ * 17-13|5 bits|  o |option
+ *    12|1 bit |  r |rest
+ * 11- 7|5 bits| m2 |mandatory 2
+ *  6- 2|5 bits|  k |keyword
+ *     1|1 bit |  d |dictionary
+ *     0|1 bit |  b |block
+ */
 uint32_t setup_parameters(Scope *scope, Node *node)
 {
-  if (Node_atomType(node) != ATOM_block_parameters) return 0;
   uint32_t bbb = 0;
+  if (Node_atomType(node) != ATOM_block_parameters) return bbb;
+  Node *node2;
   { /* mandatory args */
-    GenValuesResult result = {0};
-    gen_values(scope, node->cons.cdr->cons.car, &result);
-    bbb = (uint32_t)result.nargs << 18;
+    node2 = node->cons.cdr->cons.car; // ATOM_margs
+    setup_parameters_sub(node2, &bbb, 18);
   }
   { /* option args which have an initial value */
-    /* this gen_values() won't produce VM code */
-    GenValuesResult result = {0};
-    gen_values(scope, node->cons.cdr->cons.cdr->cons.car, &result);
-    bbb += (uint32_t)result.nargs << 13;
+    node2 = node->cons.cdr->cons.cdr->cons.car; // ATOM_optargs
+    setup_parameters_sub(node2, &bbb, 13);
   }
   { /* rest arg */
     Node *restarg = node->cons.cdr->cons.cdr->cons.cdr->cons.car;
     if (restarg->cons.cdr->cons.car) bbb |= 0b1000000000000;
   }
   { /* m2args */
-    GenValuesResult result = {0};
-    gen_values(scope, node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car, &result);
-    bbb += (uint32_t)result.nargs << 7;
+    node2 = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car; // ATOM_optargs
+    setup_parameters_sub(node2, &bbb, 7);
   }
   /* tailargs */
   Node *args_tail = node->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car;
   if (Node_atomType(args_tail) != ATOM_args_tail) return bbb;
   { /* kw_args */
-    Node *kw_args = args_tail->cons.cdr->cons.car;
-    // TODO
+    Node *kw_args = args_tail->cons.cdr->cons.car->cons.cdr;
+    int kw_args_num = 0;
+    for (;;) {
+      if (!kw_args || Node_atomType(kw_args->cons.car) != ATOM_args_tail_kw_arg) break;
+      kw_args_num++;
+      kw_args = kw_args->cons.cdr;
+    }
+    bbb += kw_args_num<<2;
   }
   { /* kw_rest_args */
     Node *kw_rest_args = args_tail->cons.cdr->cons.cdr->cons.car;
@@ -1538,7 +1561,6 @@ uint32_t setup_parameters(Scope *scope, Node *node)
     Node *block_arg = args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car;
     if (block_arg->cons.cdr->cons.car->value.name) bbb += 1;
   }
-  /* TODO: kargs */
   return bbb;
 }
 
@@ -1568,6 +1590,44 @@ void gen_irep(Scope *scope, Node *node)
       codegen(scope, node->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car);
       scope->sp -= nopt;
       backpatch_jmpLabel(label, scope->vm_code_size);
+    }
+  }
+  { /* keyword args */
+    uint8_t nkw = (bbb>>2)&31;
+    if (nkw) {
+      LvarScopeReg scopeReg;
+      /* ATOM_args_tail_kw_args */
+      Node *kw_args = node->cons.car->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr;;
+      for (int i=0; i < nkw; i++) {
+        const char *lvarName = Node_literalName(kw_args->cons.car->cons.cdr);
+        scopeReg = Scope_lvar_findRegnum(scope, lvarName);
+        scope->sp = scopeReg.reg_num;
+        int litIndex = Scope_newSym(scope, lvarName);
+        JmpLabel *label_2 = NULL;
+        if (kw_args->cons.car->cons.cdr->cons.cdr->cons.car) {
+          Scope_pushCode(OP_KEY_P);
+          Scope_pushCode(scopeReg.reg_num);
+          Scope_pushCode(litIndex);
+          Scope_pushCode(OP_JMPIF);
+          Scope_pushCode(scopeReg.reg_num);
+          JmpLabel *label_1 = reserve_jmpLabel(scope);
+          push_backpatch(scope, label_1);
+          codegen(scope, kw_args->cons.car->cons.cdr);
+          Scope_pushCode(OP_JMP);
+          label_2 = reserve_jmpLabel(scope);
+          push_backpatch(scope, label_2);
+          backpatch_jmpLabel(label_1, scope->vm_code_size);
+        }
+        Scope_pushCode(OP_KARG);
+        Scope_pushCode(scopeReg.reg_num);
+        Scope_pushCode(litIndex);
+        kw_args = kw_args->cons.cdr;
+        if (label_2) backpatch_jmpLabel(label_2, scope->vm_code_size);
+        Scope_push(scope);
+      }
+      if (bbb & 0b10 == 0) {
+        Scope_pushCode(OP_KEYEND);
+      }
     }
   }
   { /* inside def */
@@ -1751,8 +1811,8 @@ void gen_super_bb(Scope *scope)
   uint32_t bbb = scope->irep_parameters;
   uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
                 (bbb>>7 & 0x3f) << 5 |                              // r m2
-                (bbb>>1 & 1) << 4;                                  // d
-                /* TODO: lv */
+                (bbb>>1 & 1) << 4 |                                 // d
+                (bbb>>2 & 0x1f ) << 4;                              // keyword -> lv
   Scope_pushCode((uint8_t)(bb >> 8));
   Scope_pushCode((uint8_t)(bb & 0xff));
 }
@@ -2150,7 +2210,7 @@ void codegen(Scope *scope, Node *tree)
       gen_array(scope, tree, 0);
       break;
     case ATOM_hash:
-      gen_hash(scope, tree->cons.cdr);
+      gen_hash(scope, tree->cons.cdr, false);
       break;
     case ATOM_at_ivar:
     case ATOM_at_gvar:
@@ -2209,7 +2269,8 @@ void codegen(Scope *scope, Node *tree)
       break;
     case ATOM_kw_hash:
       Scope_push(scope);
-      codegen(scope, tree->cons.cdr);
+      gen_hash(scope, tree->cons.cdr, true);
+      Scope_push(scope);
       break;
     case ATOM_block_arg:
       codegen(scope, tree->cons.cdr);
