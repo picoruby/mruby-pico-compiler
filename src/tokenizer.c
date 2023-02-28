@@ -825,9 +825,6 @@ retry:
                 value[2] = '\0';
                 type = ANDDOT;
                 p->state = EXPR_DOT;
-              } else if (self->line[self->pos + 1] != ' ') {
-                //yywarning(p, "'&' interpreted as argument prefix");
-                type = AMPER;
               } else if (IS_BEG()) {
                 type = AMPER;
               } else {
