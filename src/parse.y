@@ -456,11 +456,22 @@
     } else if (Node_atomType(a->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_args_add) {
       /* call */
       args_add = a->cons.cdr->cons.cdr->cons.cdr->cons.car;
+    } else if (Node_atomType(a) == ATOM_args_add) {
+      /* From cmd_brace_block
+       * Syntax error:
+       *  1.upto 4 {|i| p i}
+       * while this is valid:
+       *  1.upto 4 do |i| p i end
+       */
+      p->error_count++;
+      return;
     } else {
+      p->error_count++;
       FATALP("This should not happen");
       return;
     }
     if (Node_atomType(args_add->cons.cdr->cons.cdr->cons.cdr->cons.car) == ATOM_block_arg) {
+      p->error_count++;
       ERRORP("both block arg and actual block given");
     } else {
       a = push(args_add, b);
