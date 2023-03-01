@@ -450,7 +450,9 @@ retry:
       case '*':
         switch (value[1]) {
           case '*':
-            if (IS_BEG()) {
+            if (self->line[self->pos - 1] == ' ') {
+              type = DSTAR;
+            } else if (IS_BEG()) {
               type = DSTAR;
             } else {
               type = POW;

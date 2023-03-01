@@ -18,6 +18,7 @@ typedef struct {
   int nargs;
   int op_send;
   bool has_splat;
+  bool has_doublesplat;
   bool has_block;
   bool has_block_arg;
   bool is_super;
@@ -283,6 +284,8 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
           while (node2) {
             if (Node_atomType(node2->cons.car) == ATOM_assoc_new) {
               result->nargs += 1<<4;
+            } else if (Node_atomType(node2->cons.car) == ATOM_args_tail_kw_rest_args) {
+              result->has_doublesplat = true;
             }
             node2 = node2->cons.cdr;
           }
@@ -496,9 +499,11 @@ void gen_call(Scope *scope, Node *node, bool is_fcall, bool is_scall)
     int symIndex = Scope_newSym(scope, method_name);
     Scope_pushCode(symIndex);
     if (result.op_send == OP_SEND || result.op_send == OP_SENDB) {
-      if (result.has_splat) {
-        // TODO: confirm this is right. Do I need this more elsewhere
-        Scope_pushCode(0xf);
+      if (result.has_splat || result.has_doublesplat) {
+        int b = 0;
+        if (result.has_splat) b |= 0x0f;
+        if (result.has_doublesplat) b |= 0xf0;
+        Scope_pushCode(b);
       } else {
         Scope_pushCode(result.nargs);
       }
@@ -566,24 +571,55 @@ void gen_hash(Scope *scope, Node *node, bool skip_op_hash)
   int nassocs = 0;
   Node *assoc = node;
   bool split = false;
+  bool kw_rest = false;
   while (assoc) {
-    codegen(scope, assoc->cons.car->cons.cdr->cons.car->cons.cdr->cons.car);
-    Scope_push(scope);
-    codegen(scope, assoc->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car);
-    Scope_push(scope);
-    nassocs++;
-    assoc = assoc->cons.cdr;
-    if (nassocs % PICORUBY_HASH_SPLIT_COUNT == 0) {
-      if (!split) {
-        Scope_pushCode(OP_HASH);
-      } else {
-        Scope_pushCode(OP_HASHADD);
-      }
-      Scope_pushCode(reg);
-      Scope_pushCode(PICORUBY_HASH_SPLIT_COUNT);
-      Scope_setSp(scope, reg + 1);
-      split = true;
+    if (assoc->cons.car->cons.cdr->cons.car->cons.cdr) {
+      codegen(scope, assoc->cons.car->cons.cdr->cons.car->cons.cdr->cons.car);
     }
+    Scope_push(scope);
+    if (Node_atomType(assoc->cons.car) == ATOM_args_tail_kw_rest_args) {
+      if (0 < nassocs && kw_rest) {
+        Scope_pushCode(OP_HASHADD);
+        Scope_pushCode(reg);
+        Scope_pushCode(nassocs);
+        nassocs = 0;
+      }
+      if (!kw_rest) {
+        Scope_pushCode(OP_HASH);
+        Scope_pushCode(reg);
+        Scope_pushCode(0);
+        kw_rest = true;
+      }
+      int reg_2 = scope->sp;
+      scope->sp = reg + 1;
+      if (assoc->cons.car->cons.cdr)
+      codegen(scope, assoc->cons.car->cons.cdr);
+      Scope_pushCode(OP_HASHCAT);
+      Scope_pushCode(reg);
+      scope->sp = reg_2;
+    } else {
+      codegen(scope, assoc->cons.car->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car);
+      Scope_push(scope);
+      nassocs++;
+      if (nassocs % PICORUBY_HASH_SPLIT_COUNT == 0) {
+        if (!split) {
+          Scope_pushCode(OP_HASH);
+        } else {
+          Scope_pushCode(OP_HASHADD);
+        }
+        Scope_pushCode(reg);
+        Scope_pushCode(PICORUBY_HASH_SPLIT_COUNT);
+        Scope_setSp(scope, reg + 1);
+        split = true;
+      }
+    }
+    assoc = assoc->cons.cdr;
+  }
+  if (0 < nassocs && kw_rest) {
+    Scope_pushCode(OP_HASHADD);
+    Scope_pushCode(reg);
+    Scope_pushCode(nassocs);
+    nassocs = 0;
   }
   if (!skip_op_hash) {
     if (nassocs == 0) {
@@ -603,6 +639,7 @@ void gen_hash(Scope *scope, Node *node, bool skip_op_hash)
       }
     }
   }
+  if (kw_rest) reg--;
   Scope_setSp(scope, reg);
 }
 

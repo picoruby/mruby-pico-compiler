@@ -85,7 +85,6 @@ typedef enum atom_type {
   ATOM_optargs,
   ATOM_m2args,
   ATOM_args_tail,
-  ATOM_args_tail_kw_args,
   ATOM_args_tail_kw_arg,
   ATOM_args_tail_kw_rest_args,
   ATOM_args_tail_block,

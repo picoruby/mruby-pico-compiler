@@ -648,7 +648,7 @@
     }
     return list4(
       atom(ATOM_args_tail),
-      cons(atom(ATOM_args_tail_kw_args), kws),
+      cons(atom(ATOM_args_tail_kw_arg), kws),
       list2(atom(ATOM_args_tail_kw_rest_args), kwrest),
       list2(atom(ATOM_args_tail_block), literal(blk))
     );
@@ -668,6 +668,12 @@
       local_add_f(p, kw);
     }
     return cons(atom(ATOM_args_tail_kw_arg), list2(literal(kw), a));
+  }
+
+  static Node*
+  new_kw_rest_args(ParserState *p)
+  {
+    return atom(ATOM_args_tail_kw_rest_args);
   }
 
   /* (:dstr . a) */
@@ -1698,7 +1704,11 @@ assoc(A) ::= LABEL(B) LABEL_TAG arg(C).
               }
 assoc(A) ::= DSTAR arg(B).
               {
-                A = B;
+                A = list2(new_kw_rest_args(p), B);
+              }
+assoc(A) ::= DSTAR.
+              {
+                A = list2(new_kw_rest_args(p), literal("**"));
               }
 
 
