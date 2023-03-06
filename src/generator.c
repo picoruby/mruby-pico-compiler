@@ -1648,11 +1648,9 @@ void gen_irep(Scope *scope, Node *node)
           Scope_pushCode(OP_JMPIF);
           Scope_pushCode(scopeReg.reg_num);
           JmpLabel *label_1 = reserve_jmpLabel(scope);
-          push_backpatch(scope, label_1);
           codegen(scope, kw_args->cons.car->cons.cdr);
           Scope_pushCode(OP_JMP);
           label_2 = reserve_jmpLabel(scope);
-          push_backpatch(scope, label_2);
           backpatch_jmpLabel(label_1, scope->vm_code_size);
         }
         Scope_pushCode(OP_KARG);
