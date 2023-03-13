@@ -706,7 +706,6 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
 {
   int num, reg;
   LvarScopeReg lvar = {0, 0};
-  Node *mlhs;
   switch(Node_atomType(node->cons.car)) {
     case (ATOM_lvar):
       lvar = Scope_lvar_findRegnum(scope, Node_literalName(node->cons.car->cons.cdr));
@@ -783,11 +782,12 @@ void gen_assign(Scope *scope, Node *node, int mrhs_reg)
       }
       mrhs_reg ? (scope->sp -= 2) : Scope_setSp(scope, reg);
       break;
-    case ATOM_masgn:
-      //mlhs = node->cons.cdr->cons.car;
+    case ATOM_masgn: {
+      // Node *mlhs = node->cons.cdr->cons.car;
       // TODO
       ERRORP("No nested mass assigment supported!");
       break;
+    }
     default:
       FATALP("error");
   }
@@ -1635,6 +1635,7 @@ void gen_irep(Scope *scope, Node *node)
       LvarScopeReg scopeReg;
       /* ATOM_args_tail_kw_args */
       Node *kw_args = node->cons.car->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.cdr->cons.car->cons.cdr->cons.car->cons.cdr;;
+      int _sp = scope->sp;
       for (int i=0; i < nkw; i++) {
         const char *lvarName = Node_literalName(kw_args->cons.car->cons.cdr);
         scopeReg = Scope_lvar_findRegnum(scope, lvarName);
@@ -1659,8 +1660,9 @@ void gen_irep(Scope *scope, Node *node)
         kw_args = kw_args->cons.cdr;
         if (label_2) backpatch_jmpLabel(label_2, scope->vm_code_size);
         Scope_push(scope);
+        scope->sp = _sp;
       }
-      if (bbb & 0b10 == 0) {
+      if ((bbb & 0b10) == 0) {
         Scope_pushCode(OP_KEYEND);
       }
     }
