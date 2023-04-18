@@ -38,7 +38,8 @@ Scope *Scope_new(Scope *upper, bool lvar_top)
   self->first_code_pool->index = IREP_HEADER_SIZE;
   self->nlocals = 1;
   self->sp = 1;
-  self->rlen = 1; self->exc_handler = NULL;
+  self->rlen = 1;
+  self->exc_handler = NULL;
   return self;
 }
 
@@ -380,6 +381,7 @@ void Scope_finish(Scope *scope)
   data[4] = (scope->nlocals >> 8) & 0xff;
   data[5] = scope->nlocals & 0xff;
   // nregs
+  scope->rlen++;
   data[6] = ((scope->rlen) >> 8) & 0xff;
   data[7] = (scope->rlen) & 0xff;
   // rlen (Children)
