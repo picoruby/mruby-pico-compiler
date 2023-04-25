@@ -28,4 +28,18 @@ class YieldTest < PicoRubyTest
       false
     end
   RUBY
+
+  desc "yield in nested irep"
+  assert_equal(<<~'RUBY', "Hello Ruby")
+    def exec(sql, bind_vars = [])
+      bind_vars.each do |v|
+        yield v
+      end
+    end
+    result = []
+    exec("insert into test (a, b) values (?, ?)", ["Hello", "Ruby"]) do |v|
+      result << v
+    end
+    puts result.join(" ")
+  RUBY
 end

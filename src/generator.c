@@ -1845,11 +1845,18 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
  */
 void gen_super_bb(Scope *scope)
 {
-  uint32_t bbb = scope->irep_parameters;
+  Scope *target = scope;
+  int b = 0;
+  while (!target->lvar_top) {
+    target = target->upper;
+    b = 1;
+  }
+  uint32_t bbb = target->irep_parameters;
   uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
                 (bbb>>7 & 0x3f) << 5 |                              // r m2
                 (bbb>>1 & 1) << 4 |                                 // d
-                (bbb>>2 & 0x1f ) << 4;                              // keyword -> lv
+                (bbb>>2 & 0x1f ) << 4 |                             // keyword -> lv
+                (b); // block. But I'm not sure if this is correct.
   Scope_pushCode((uint8_t)(bb >> 8));
   Scope_pushCode((uint8_t)(bb & 0xff));
 }
