@@ -2,7 +2,7 @@ MRUBY_CONFIG=File.expand_path(ENV["MRUBY_CONFIG"] || "build_config/host.rb")
 MRUBY_VERSION=ENV["MRUBY_VERSION"] || "3.0.0"
 
 file :mruby do
-  sh "git clone --depth=1 git://github.com/mruby/mruby.git"
+  sh "git clone --depth=1 https://github.com/mruby/mruby.git"
   if MRUBY_VERSION != 'master'
     Dir.chdir 'mruby' do
       sh "git fetch --tags"
