@@ -1780,6 +1780,12 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
       }
       Scope_pushCode(scope->sp);
     }
+    // super class
+    if (Node_atomType(node->cons.cdr->cons.car) == ATOM_colon2) {
+      Scope_push(scope);
+      codegen(scope, node->cons.cdr->cons.car);
+      scope->sp--;
+    }
     Scope_push(scope);
     if (Node_atomType(node->cons.cdr->cons.car) == ATOM_at_const) {
       Scope_pushCode(OP_GETCONST);
@@ -1787,8 +1793,7 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
       litIndex = Scope_newSym(scope, Node_literalName(node->cons.cdr->cons.car->cons.cdr));
       Scope_pushCode(litIndex);
     } else {
-      Scope_pushCode(OP_LOADNIL);
-      Scope_pushCode(scope->sp--);
+      scope->sp--;
     }
     Scope_pushCode(OP_CLASS);
     Scope_pushCode(scope->sp);
