@@ -1793,7 +1793,8 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
       litIndex = Scope_newSym(scope, Node_literalName(node->cons.cdr->cons.car->cons.cdr));
       Scope_pushCode(litIndex);
     } else {
-      scope->sp--;
+      Scope_pushCode(OP_LOADNIL);
+      Scope_pushCode(scope->sp--);
     }
     Scope_pushCode(OP_CLASS);
     Scope_pushCode(scope->sp);
