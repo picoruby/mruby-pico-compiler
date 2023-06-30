@@ -221,6 +221,33 @@ gen_values_sub(Node **node, GenValuesResult **result, Node **block_node)
   }
 }
 
+/*
+ * OP_BLKPUSH B bb
+ * OP_ARGARY  B bb
+ * bb: 0000000000000000
+ *     ^^^^^ ^^^^^ ^^^^
+ *      m1    m2    lv
+ *          ^     ^
+ *          r     d
+ */
+void gen_super_bb(Scope *scope)
+{
+  Scope *target = scope;
+  int b = 0;
+  while (!target->lvar_top) {
+    target = target->upper;
+    b = 1;
+  }
+  uint32_t bbb = target->irep_parameters;
+  uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
+                (bbb>>7 & 0x3f) << 5 |                              // r m2
+                (bbb>>1 & 1) << 4 |                                 // d
+                (bbb>>2 & 0x1f ) << 4 |                             // keyword -> lv
+                (b); // block. But I'm not sure if this is correct.
+  Scope_pushCode((uint8_t)(bb >> 8));
+  Scope_pushCode((uint8_t)(bb & 0xff));
+}
+
 void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
 {
   result->op_send = OP_SEND;
@@ -298,9 +325,26 @@ void gen_values(Scope *scope, Node *tree, GenValuesResult *result)
   codegen(scope, tree->cons.cdr->cons.car);
   scope->g->gen_splat_status = prev_gen_splat_status;
   if (splat_pos > 0) result->has_splat = true;
+  if (result->is_super && result->nargs == 0) {
+    if (scope->irep_parameters < 2) {
+      Scope_pushCode(OP_MOVE);
+      Scope_pushCode(scope->sp);
+      Scope_push(scope);
+      Scope_pushCode(1);
+    } else {
+      Scope_pushCode(OP_ARGARY);
+      Scope_pushCode(scope->sp);
+      gen_super_bb(scope);
+      Scope_push(scope);
+      Scope_push(scope);
+    }
+  }
   if (block_node) {
     codegen(scope, block_node);
     result->op_send = OP_SENDB;
+  }
+  if (result->is_super && result->nargs == 0) {
+    scope->sp -= 2;
   }
 }
 
@@ -1556,6 +1600,14 @@ setup_parameters_sub(Node *node, uint32_t *bbb, int shift_size)
  */
 uint32_t setup_parameters(Scope *scope, Node *node)
 {
+  Lvar *lvar = scope->lvar;
+  while (lvar) {
+    if (strcmp(lvar->name, "&") == 0) {
+      scope->block_arg_regnum = lvar->regnum;
+      break;
+    }
+    lvar = lvar->next;
+  }
   uint32_t bbb = 0;
   if (Node_atomType(node) != ATOM_block_parameters) return bbb;
   Node *node2;
@@ -1596,7 +1648,17 @@ uint32_t setup_parameters(Scope *scope, Node *node)
   }
   { /* block_arg */
     Node *block_arg = args_tail->cons.cdr->cons.cdr->cons.cdr->cons.car;
-    if (block_arg->cons.cdr->cons.car->value.name) bbb += 1;
+    if (block_arg->cons.cdr->cons.car->value.name) {
+      bbb += 1;
+      lvar = scope->lvar;
+      while (lvar) {
+        if (strcmp(lvar->name, block_arg->cons.cdr->cons.car->value.name) == 0) {
+          scope->block_arg_regnum = lvar->regnum;
+          break;
+        }
+        lvar = lvar->next;
+      }
+    }
   }
   return bbb;
 }
@@ -1838,69 +1900,27 @@ void gen_class_module(Scope *scope, Node *node, AtomType type)
   }
 }
 
-/*
- * OP_BLKPUSH B bb
- * OP_ARGARY  B bb
- * bb: 0000000000000000
- *     ^^^^^ ^^^^^ ^^^^
- *      m1    m2    lv
- *          ^     ^
- *          r     d
- */
-void gen_super_bb(Scope *scope)
-{
-  Scope *target = scope;
-  int b = 0;
-  while (!target->lvar_top) {
-    target = target->upper;
-    b = 1;
-  }
-  uint32_t bbb = target->irep_parameters;
-  uint16_t bb = ( (bbb >> 18 & 0x1f) + (bbb >> 13 & 0x1f) ) << 11 | // m1
-                (bbb>>7 & 0x3f) << 5 |                              // r m2
-                (bbb>>1 & 1) << 4 |                                 // d
-                (bbb>>2 & 0x1f ) << 4 |                             // keyword -> lv
-                (b); // block. But I'm not sure if this is correct.
-  Scope_pushCode((uint8_t)(bb >> 8));
-  Scope_pushCode((uint8_t)(bb & 0xff));
-}
-
 void gen_super(Scope *scope, Node *node, bool zsuper)
 {
+  int call_regnum = scope->sp;
   Scope_push(scope);
   GenValuesResult result = {0};
   result.is_super = true;
   gen_values(scope, node, &result);
-  if (zsuper && scope->irep_parameters > 1) {
-    Scope_pushCode(OP_ARGARY);
+  if (0 < result.nargs && !result.has_block) {
+    Scope_pushCode(OP_MOVE);
     Scope_pushCode(scope->sp);
-    gen_super_bb(scope);
-  } else {
-    if (!result.has_block && !result.has_block_arg) {
-      Scope_pushCode(OP_MOVE);
-      Scope_pushCode(scope->sp);
-      Lvar *lvar = scope->lvar;
-      while (lvar->next) lvar = lvar->next;
-      Scope_pushCode(lvar->regnum); // block var
-    }
+    Scope_pushCode(scope->block_arg_regnum);
   }
-  if (!result.has_splat) {
-    scope->sp -= result.nargs;
-  } else {
-    scope->sp--;
-  }
+  scope->sp = call_regnum;
   Scope_pushCode(OP_SUPER);
-  if (result.has_block) {
-    --scope->sp;
-    Scope_pushCode(--scope->sp);
+  Scope_pushCode(scope->sp);
+  if (scope->irep_parameters == 0 || 0 < result.nargs) {
     Scope_pushCode(result.nargs);
+  } else if (scope->irep_parameters & 0b1111110) { // kw_arg or kw_rest_args
+    Scope_pushCode(0xff);
   } else {
-    Scope_pushCode(--scope->sp);
-    if (scope->irep_parameters > 1) {
-      Scope_pushCode(15);
-    } else {
-      Scope_pushCode(result.nargs);
-    }
+    Scope_pushCode(0x0f);
   }
 }
 
