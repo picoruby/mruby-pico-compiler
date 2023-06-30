@@ -115,6 +115,7 @@ typedef struct scope
   uint16_t clen; /* exception handler length */
   uint32_t vm_code_size;
   uint8_t *vm_code;
+  uint8_t block_arg_regnum;
   AssignSymbol *last_assign_symbol;
   ExcHandler *exc_handler;
   GeneratorState *g;
