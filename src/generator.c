@@ -738,6 +738,7 @@ void gen_splat(Scope *scope, Node *node)
     scope->sp -= scope->g->nargs_before_splat;
     Scope_pushCode(scope->sp);
     Scope_pushCode(scope->g->nargs_before_splat);
+    scope->g->nargs_before_splat = 0;
     scope->g->gen_splat_status = GEN_SPLAT_STATUS_AFTER_SPLAT;
     Scope_push(scope);
   }
